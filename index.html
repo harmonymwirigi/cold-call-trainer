@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cold Call Roleplay Trainer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .homepage {
+            display: block;
+        }
+
+        .roleplay-page {
+            display: none;
+        }
+
+        .roleplay-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 40px;
+        }
+
+        .roleplay-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+        }
+
+        .roleplay-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+
+        .roleplay-card h3 {
+            color: #4a5568;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+
+        .roleplay-card p {
+            color: #718096;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .roleplay-interface {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+
+        .character-container {
+            position: relative;
+            margin-bottom: 30px;
+        }
+
+        .character-image {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 5px solid #667eea;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .character-image.speaking {
+            animation: speak 0.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes speak {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.05); }
+        }
+
+        .character-name {
+            margin-top: 15px;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+
+        .mic-button {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            border: none;
+            color: white;
+            font-size: 2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mic-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 5px 20px rgba(72, 187, 120, 0.4);
+        }
+
+        .mic-button.recording {
+            background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .status.listening {
+            background: #e6fffa;
+            color: #234e52;
+            border: 2px solid #4fd1c7;
+        }
+
+        .status.processing {
+            background: #fef5e7;
+            color: #744210;
+            border: 2px solid #f6ad55;
+        }
+
+        .status.speaking {
+            background: #e6f3ff;
+            color: #2c5282;
+            border: 2px solid #4299e1;
+        }
+
+        .progress {
+            margin: 20px 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .back-button {
+            background: #718096;
+            margin-right: 10px;
+        }
+
+        .back-button:hover {
+            background: #4a5568;
+        }
+
+        .user-form {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .legend-mode {
+            background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+            color: #333;
+        }
+
+        .legend-mode:hover {
+            background: linear-gradient(135deg, #ffed4a 0%, #f6ad55 100%);
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .roleplay-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .character-image {
+                width: 150px;
+                height: 150px;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+
+        .feedback {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .feedback.success {
+            background: #f0fff4;
+            color: #22543d;
+            border: 2px solid #48bb78;
+        }
+
+        .feedback.failure {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 2px solid #e53e3e;
+        }
+
+        .scenario-info {
+            background: #edf2f7;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .scenario-info h4 {
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+
+        .scenario-info p {
+            color: #4a5568;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Cold Call Roleplay Trainer</h1>
+            <p>Master your sales skills with AI-powered roleplay scenarios</p>
+        </div>
+
+        <!-- User Registration Form -->
+        <div id="userForm" class="user-form">
+            <h3 style="text-align: center; margin-bottom: 20px; color: #4a5568;">Get Started</h3>
+            <div class="form-group">
+                <label for="userName">Your Name:</label>
+                <input type="text" id="userName" placeholder="Enter your full name" required>
+            </div>
+            <div class="form-group">
+                <label for="userEmail">Email Address:</label>
+                <input type="email" id="userEmail" placeholder="Enter your email" required>
+            </div>
+            <div style="text-align: center;">
+                <button class="btn" onclick="startTraining()">Start Training</button>
+            </div>
+        </div>
+
+        <!-- Homepage -->
+        <div id="homepage" class="homepage" style="display: none;">
+            <div class="roleplay-grid">
+                <div class="roleplay-card" onclick="startRoleplay('warmup')">
+                    <h3>🔥 Warm-Up Quiz</h3>
+                    <p>Quick practice prompts to get you ready. Random challenges like "Ask for a meeting" or "Pitch me your product".</p>
+                    <button class="btn">Start Warm-Up</button>
+                </div>
+
+                <div class="roleplay-card" onclick="startRoleplay('opener')">
+                    <h3>🚪 Opener + Early Objections</h3>
+                    <p>Practice your opening lines and handle early objections. Complete 10 rounds to unlock Legend Mode.</p>
+                    <button class="btn">Practice Openers</button>
+                </div>
+
+                <div class="roleplay-card" onclick="startRoleplay('pitch')">
+                    <h3>💼 Pitch + Post-Pitch Objections</h3>
+                    <p>Perfect your pitch and master objection handling. Face 10 different objections to unlock Legend Mode.</p>
+                    <button class="btn">Practice Pitching</button>
+                </div>
+
+                <div class="roleplay-card" onclick="startRoleplay('fullcall')">
+                    <h3>📞 Full Cold Call Simulation</h3>
+                    <p>Complete end-to-end cold call experience. From opener to meeting request with realistic interruptions.</p>
+                    <button class="btn">Start Full Call</button>
+                </div>
+
+                <div class="roleplay-card" onclick="startRoleplay('accents')">
+                    <h3>🌍 Fast Accents Challenge</h3>
+                    <p>Handle fast-paced conversations and various accents. Build confidence with diverse speaking styles.</p>
+                    <button class="btn">Take Challenge</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Roleplay Interface -->
+        <div id="roleplayPage" class="roleplay-page">
+            <div class="roleplay-interface">
+                <div class="scenario-info" id="scenarioInfo">
+                    <h4>Scenario Instructions</h4>
+                    <p id="scenarioDescription">Loading scenario...</p>
+                </div>
+
+                <div class="character-container">
+                    <img id="characterImage" class="character-image" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Ccircle cx='100' cy='100' r='90' fill='%23667eea'/%3E%3Ccircle cx='75' cy='80' r='8' fill='white'/%3E%3Ccircle cx='125' cy='80' r='8' fill='white'/%3E%3Cpath d='M 70 130 Q 100 150 130 130' stroke='white' stroke-width='3' fill='none'/%3E%3C/svg%3E" alt="AI Character">
+                    <div class="character-name" id="characterName">AI Prospect</div>
+                </div>
+
+                <div class="progress" id="progressContainer" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span>Progress</span>
+                        <span id="progressText">0/10</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <div class="status" id="status">Click the microphone to start speaking</div>
+
+                <div class="feedback" id="feedback" style="display: none;"></div>
+
+                <div class="controls">
+                    <button class="btn back-button" onclick="goHome()">← Back to Menu</button>
+                    <button class="mic-button" id="micButton" onclick="toggleMicrophone()">🎤</button>
+                    <button class="btn" onclick="resetScenario()">🔄 Reset</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        var currentScenario = null;
+        var isRecording = false;
+        var isSpeaking = false;
+        var currentProgress = 0;
+        var maxProgress = 10;
+        var userData = {};
+        var scenarioData = {};
+
+        // OpenAI Configuration
+        var OPENAI_CONFIG = {
+            apiKey: 'YOUR_OPENAI_API_KEY',
+            model: 'gpt-3.5-turbo',
+            baseURL: 'https://api.openai.com/v1/chat/completions'
+        };
+
+        // Amazon Polly Configuration
+        var POLLY_CONFIG = {
+            region: 'us-east-1',
+            accessKeyId: 'YOUR_AWS_ACCESS_KEY',
+            secretAccessKey: 'YOUR_AWS_SECRET_KEY',
+            voices: {
+                warmup: 'Joanna',
+                opener: 'Kimberly',
+                pitch: 'Matthew',
+                fullcall: 'Amy',
+                accents: 'Russell'
+            }
+        };
+
+        // GPT Prompts for each scenario
+        var GPT_PROMPTS = {
+            warmup: {
+                system: "You are Coach Alex, a friendly sales trainer giving quick warm-up challenges. Give brief, encouraging responses to student attempts and provide the next random challenge from: asking for meetings, pitching products, handling objections, building trust, creating urgency, discovery questions. Keep responses under 50 words.",
+                context: "This is a warm-up exercise. The student needs quick practice prompts."
+            },
+            opener: {
+                system: "You are Sarah Mitchell, a busy executive receiving cold calls. When the student gives an opener, respond with a random early objection from: 'I'm not interested', 'I'm too busy', 'No budget', 'Send info', 'Happy with current solution', 'I don't make decisions', 'Call back later', 'Not looking for anything new', 'No time for sales calls'. Evaluate if their opener was good (had greeting, name, reason) and give brief feedback.",
+                context: "This is opener practice. Student needs to handle early objections and get evaluated on opener quality."
+            },
+            pitch: {
+                system: "You are David Chen, a skeptical prospect listening to pitches. After hearing a pitch, respond with objections like: 'Price too high', 'How do I know it works?', 'Need time to decide', 'Discuss with team', 'What if no results?', 'Tried similar before', 'Competitor offered better', 'Don't see ROI', 'Too complicated', 'Not ready for change'. Evaluate if pitch had benefits, specifics, and engagement.",
+                context: "This is pitch practice. Student needs to handle post-pitch objections and get pitch evaluation."
+            },
+            fullcall: {
+                system: "You are Jessica Torres, a realistic business prospect receiving a cold call. Act naturally - sometimes interested, sometimes skeptical, sometimes busy. Interrupt with objections throughout. Respond realistically to openers, discovery questions, pitches, and closes. Be challenging but fair.",
+                context: "This is a full cold call simulation. Act like a real prospect with natural reactions."
+            },
+            accents: {
+                system: "You are part of an international panel speaking with various accents and fast pace. Use Australian slang and expressions. Respond quickly and with accent-influenced phrasing. Challenge the student with fast, varied responses.",
+                context: "This is accent/speed challenge. Respond with Australian expressions and fast pace."
+            }
+        };
+
+        // Scenario configurations
+        var scenarios = {
+            warmup: {
+                name: "Warm-Up Quiz",
+                character: "Coach Alex",
+                description: "Quick warm-up exercises to get your sales muscles moving. I'll give you random prompts and you respond naturally.",
+                prompts: [
+                    "Ask me for a meeting",
+                    "Pitch me your product in 30 seconds",
+                    "Handle this objection: 'I'm not interested'",
+                    "Tell me why I should trust your company",
+                    "What makes your solution different?",
+                    "Convince me to take your call",
+                    "Handle: 'We're happy with our current provider'",
+                    "Ask me a discovery question",
+                    "Create urgency for your offer",
+                    "Close for the next step"
+                ]
+            },
+            opener: {
+                name: "Opener + Early Objections",
+                character: "Sarah Mitchell",
+                description: "Practice your opening lines and handle early objections. Complete 10 successful rounds to unlock Legend Mode with 18 rapid-fire objections.",
+                objections: [
+                    "I'm not interested",
+                    "I'm too busy right now",
+                    "We don't have budget for that",
+                    "I need to think about it",
+                    "Send me some information",
+                    "I'm happy with our current solution",
+                    "I don't make those decisions",
+                    "Call me back next quarter",
+                    "We're not looking for anything new",
+                    "I don't have time for sales calls"
+                ]
+            },
+            pitch: {
+                name: "Pitch + Post-Pitch Objections",
+                character: "David Chen",
+                description: "Perfect your pitch and master post-pitch objections. Handle 10 different objections to unlock Legend Mode with 18 challenging responses.",
+                objections: [
+                    "Your price is too high",
+                    "How do I know this will work?",
+                    "We need more time to decide",
+                    "I need to discuss with my team",
+                    "What if it doesn't deliver results?",
+                    "We've tried similar solutions before",
+                    "Your competitor offered us a better deal",
+                    "We don't see the ROI",
+                    "This seems too complicated",
+                    "We're not ready to make a change"
+                ]
+            },
+            fullcall: {
+                name: "Full Cold Call Simulation",
+                character: "Jessica Torres",
+                description: "Complete cold call from start to finish. I'll act like a real prospect with realistic interruptions and objections throughout the conversation.",
+                phases: ["opener", "discovery", "pitch", "objections", "close"]
+            },
+            accents: {
+                name: "Fast Accents Challenge",
+                character: "International Panel",
+                description: "Handle fast-paced conversations with various speaking styles. Build confidence with diverse communication patterns.",
+                styles: ["fast", "slow", "accented", "interrupted", "distracted"]
+            }
+        };
+
+        // Initialize Speech Recognition
+        var recognition = null;
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+        }
+
+        // Performance monitoring
+        var performanceMetrics = {
+            speechRecognitionErrors: 0,
+            speechSynthesisErrors: 0,
+            averageResponseTime: []
+        };
+
+        var responseStartTime = null;
+        var logoClicks = 0;
+
+        function startTraining() {
+            var name = document.getElementById('userName').value.trim();
+            var email = document.getElementById('userEmail').value.trim();
+            
+            if (!name || !email) {
+                alert('Please fill in both name and email to continue.');
+                return;
+            }
+            
+            userData = { name: name, email: email, startTime: new Date().toISOString() };
+            
+            logSession('session_start', 'User started training session');
+            
+            document.getElementById('userForm').style.display = 'none';
+            document.getElementById('homepage').style.display = 'block';
+        }
+
+        function startRoleplay(type) {
+            currentScenario = type;
+            currentProgress = 0;
+            scenarioData = scenarios[type];
+            
+            logSession('scenario_start', 'Started ' + scenarioData.name);
+            
+            document.getElementById('homepage').style.display = 'none';
+            document.getElementById('roleplayPage').style.display = 'block';
+            
+            setupScenario();
+            initializeScenario();
+        }
+
+        function setupScenario() {
+            document.getElementById('characterName').textContent = scenarioData.character;
+            document.getElementById('scenarioDescription').textContent = scenarioData.description;
+            
+            if (currentScenario === 'opener' || currentScenario === 'pitch') {
+                document.getElementById('progressContainer').style.display = 'block';
+                updateProgress();
+            } else {
+                document.getElementById('progressContainer').style.display = 'none';
+            }
+            
+            updateCharacterImage();
+        }
+
+        function updateCharacterImage() {
+            var colors = {
+                warmup: '#ff6b6b',
+                opener: '#4ecdc4',
+                pitch: '#45b7d1',
+                fullcall: '#96ceb4',
+                accents: '#ffeaa7'
+            };
+            
+            var color = colors[currentScenario] || '#667eea';
+            var imageUrl = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Ccircle cx='100' cy='100' r='90' fill='" + encodeURIComponent(color) + "'/%3E%3Ccircle cx='75' cy='80' r='8' fill='white'/%3E%3Ccircle cx='125' cy='80' r='8' fill='white'/%3E%3Cpath d='M 70 130 Q 100 150 130 130' stroke='white' stroke-width='3' fill='none'/%3E%3C/svg%3E";
+            
+            document.getElementById('characterImage').src = imageUrl;
+        }
+
+        function initializeScenario() {
+            var welcomeMessages = {
+                warmup: "Welcome to warm-up! I'll give you quick challenges to get you ready. Let's start with your first prompt!",
+                opener: "Hi there! I'm Sarah, and I'll be helping you practice your openers and handle early objections. Are you ready to begin?",
+                pitch: "Hello! I'm David, and I'm here to help you perfect your pitch and objection handling skills. Let's get started!",
+                fullcall: "Ring ring... Hello, this is Jessica Torres. Who is this and what do you want?",
+                accents: "G'day mate! Ready for the accent challenge? We'll be switching up the pace and style throughout our conversation!"
+            };
+            
+            speakText(welcomeMessages[currentScenario]);
+            
+            if (currentScenario === 'warmup') {
+                setTimeout(function() {
+                    var prompts = scenarioData.prompts;
+                    var prompt = prompts[Math.floor(Math.random() * prompts.length)];
+                    speakText("Here's your challenge: " + prompt + ". Go ahead and respond!");
+                }, 3000);
+            }
+        }
+
+        function toggleMicrophone() {
+            if (!recognition) {
+                updateStatus('Speech recognition not supported in this browser. Please use Chrome or Edge.');
+                return;
+            }
+            
+            if (isSpeaking) {
+                updateStatus('Please wait for me to finish speaking first.');
+                return;
+            }
+            
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        }
+
+        function startRecording() {
+            if (!recognition) return;
+            
+            isRecording = true;
+            document.getElementById('micButton').classList.add('recording');
+            updateStatus('Listening... Speak now!');
+            
+            recognition.onresult = function(event) {
+                var transcript = event.results[0][0].transcript;
+                handleUserInput(transcript);
+            };
+            
+            recognition.onerror = function(event) {
+                console.error('Speech recognition error:', event.error);
+                updateStatus('Sorry, I couldn\'t hear you clearly. Please try again.');
+                stopRecording();
+            };
+            
+            recognition.onend = function() {
+                stopRecording();
+            };
+            
+            try {
+                recognition.start();
+            } catch (error) {
+                console.error('Error starting recognition:', error);
+                updateStatus('Error starting microphone. Please try again.');
+                stopRecording();
+            }
+        }
+
+        function stopRecording() {
+            isRecording = false;
+            document.getElementById('micButton').classList.remove('recording');
+            if (recognition) {
+                recognition.stop();
+            }
+        }
+
+        function handleUserInput(transcript) {
+            updateStatus('Processing your response...');
+            startResponseTimer();
+            
+            logSession('user_input', transcript);
+            
+            generateGPTResponse(transcript);
+        }
+
+        function generateGPTResponse(userInput) {
+            try {
+                var prompt = GPT_PROMPTS[currentScenario];
+                
+                var messages = [
+                    {
+                        role: "system",
+                        content: prompt.system + "\n\nContext: " + prompt.context + "\n\nCurrent progress: " + currentProgress + "/" + maxProgress
+                    },
+                    {
+                        role: "user", 
+                        content: userInput
+                    }
+                ];
+                
+                if (currentScenario === 'opener' || currentScenario === 'pitch') {
+                    messages[0].content += '\n\nIMPORTANT: After your response, evaluate the student\'s input and provide feedback in this format: "FEEDBACK: [SUCCESS/RETRY] - [brief explanation]"';
+                }
+                
+                callOpenAI(messages).then(function(response) {
+                    var parsed = parseGPTResponse(response);
+                    var aiResponse = parsed.aiResponse;
+                    var feedback = parsed.feedback;
+                    var isSuccess = parsed.isSuccess;
+                    
+                    speakText(aiResponse);
+                    endResponseTimer();
+                    
+                    if (feedback) {
+                        showFeedback(feedback, isSuccess);
+                        
+                        if (isSuccess && (currentScenario === 'opener' || currentScenario === 'pitch')) {
+                            currentProgress++;
+                            updateProgress();
+                            
+                            if (currentProgress < maxProgress) {
+                                setTimeout(function() {
+                                    generateNextChallenge().then(function(nextChallenge) {
+                                        speakText(nextChallenge);
+                                    });
+                                }, 3000);
+                            } else {
+                                setTimeout(function() {
+                                    speakText("Congratulations! You've completed all rounds. You've unlocked Legend Mode!");
+                                }, 3000);
+                            }
+                        }
+                    } else if (currentScenario === 'warmup') {
+                        setTimeout(function() {
+                            generateWarmupChallenge().then(function(nextPrompt) {
+                                speakText(nextPrompt);
+                            });
+                        }, 3000);
+                    }
+                }).catch(function(error) {
+                    console.error('GPT Response Error:', error);
+                    endResponseTimer();
+                    updateStatus('Sorry, I had trouble processing that. Please try again.');
+                    showFeedback('❌ AI processing error. Please check your connection and try again.', false);
+                });
+                
+            } catch (error) {
+                console.error('GPT Response Error:', error);
+                endResponseTimer();
+                updateStatus('Sorry, I had trouble processing that. Please try again.');
+                showFeedback('❌ AI processing error. Please check your connection and try again.', false);
+            }
+        }
+
+        function callOpenAI(messages) {
+            var requestBody = {
+                model: OPENAI_CONFIG.model,
+                messages: messages,
+                max_tokens: 150,
+                temperature: 0.7,
+                top_p: 1,
+                frequency_penalty: 0.3,
+                presence_penalty: 0.3
+            };
+            
+            return fetch('/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestBody)
+            }).then(function(response) {
+                if (!response.ok) {
+                    throw new Error('HTTP error! status: ' + response.status);
+                }
+                return response.json();
+            }).then(function(data) {
+                return data.choices[0].message.content;
+            }).catch(function(error) {
+                console.error('OpenAI API Error:', error);
+                return generateFallbackResponse();
+            });
+        }
+
+        function parseGPTResponse(response) {
+            var feedbackMatch = response.match(/FEEDBACK:\s*(SUCCESS|RETRY)\s*-\s*(.+?)(?:\n|$)/i);
+            
+            var aiResponse = response;
+            var feedback = null;
+            var isSuccess = false;
+            
+            if (feedbackMatch) {
+                aiResponse = response.replace(/FEEDBACK:.*$/im, '').trim();
+                feedback = feedbackMatch[2].trim();
+                isSuccess = feedbackMatch[1].toUpperCase() === 'SUCCESS';
+                feedback = (isSuccess ? '✅ ' : '❌ ') + feedback;
+            }
+            
+            return { aiResponse: aiResponse, feedback: feedback, isSuccess: isSuccess };
+        }
+
+        function generateNextChallenge() {
+            var challengePrompts = {
+                opener: [
+                    {
+                        role: "system",
+                        content: "Generate a realistic early objection that a busy executive would give to a cold caller. Choose from: not interested, too busy, no budget, send info, happy with current, don't make decisions, call later, not looking, no time. Respond as the prospect Sarah Mitchell in character."
+                    },
+                    {
+                        role: "user",
+                        content: "Give me the next objection challenge"
+                    }
+                ],
+                pitch: [
+                    {
+                        role: "system", 
+                        content: "Generate a realistic post-pitch objection that a skeptical prospect would give. Choose from: price too high, prove it works, need time, discuss with team, what if no results, tried before, competitor better, no ROI, too complicated, not ready. Respond as prospect David Chen in character."
+                    },
+                    {
+                        role: "user",
+                        content: "Give me the next objection to handle"
+                    }
+                ]
+            };
+            
+            if (challengePrompts[currentScenario]) {
+                return callOpenAI(challengePrompts[currentScenario]).catch(function(error) {
+                    var fallbacks = {
+                        opener: ["I'm not interested.", "I'm too busy right now.", "We don't have budget for that."],
+                        pitch: ["Your price is too high.", "How do I know this will work?", "I need to think about it."]
+                    };
+                    var challenges = fallbacks[currentScenario];
+                    return challenges[Math.floor(Math.random() * challenges.length)];
+                });
+            }
+            
+            return Promise.resolve("Let's continue with the next challenge!");
+        }
+
+        function generateWarmupChallenge() {
+            var warmupMessages = [
+                {
+                    role: "system",
+                    content: "You are Coach Alex giving a quick warm-up challenge. Give one random challenge from: ask for a meeting, pitch in 30 seconds, handle 'not interested', build trust, show differentiation, create urgency, discovery question, handle 'happy with current', close for next step. Be encouraging and brief."
+                },
+                {
+                    role: "user",
+                    content: "Give me a quick warm-up challenge"
+                }
+            ];
+            
+            return callOpenAI(warmupMessages).catch(function(error) {
+                var challenges = [
+                    "Ask me for a meeting!",
+                    "Pitch me your product in 30 seconds!",
+                    "Handle this: 'I'm not interested'",
+                    "Tell me why I should trust you!",
+                    "What makes you different from competitors?"
+                ];
+                return challenges[Math.floor(Math.random() * challenges.length)];
+            });
+        }
+
+        function generateFallbackResponse() {
+            var fallbacks = {
+                warmup: "Great effort! Here's your next challenge: Ask me for a meeting!",
+                opener: "I'm not interested. [DEMO MODE - OpenAI not configured]",
+                pitch: "Your price seems too high. [DEMO MODE - OpenAI not configured]", 
+                fullcall: "Okay, I'm listening. What's this about? [DEMO MODE - OpenAI not configured]",
+                accents: "Fair dinkum! That's not half bad, mate! [DEMO MODE - OpenAI not configured]"
+            };
+            
+            return fallbacks[currentScenario] || "I understand. Please continue. [DEMO MODE - OpenAI not configured]";
+        }
+
+        function speakText(text) {
+            if (isSpeaking) {
+                var audioElements = document.querySelectorAll('audio');
+                audioElements.forEach(function(audio) {
+                    audio.pause();
+                    audio.remove();
+                });
+            }
+            
+            isSpeaking = true;
+            document.getElementById('characterImage').classList.add('speaking');
+            updateStatus('AI is speaking...');
+            
+            try {
+                var voiceName = POLLY_CONFIG.voices[currentScenario] || 'Joanna';
+                var speechRate = 'medium';
+                if (currentScenario === 'accents') {
+                    speechRate = 'fast';
+                }
+                
+                synthesizeSpeechWithPolly(text, voiceName, speechRate).then(function(audioUrl) {
+                    var audio = new Audio(audioUrl);
+                    audio.onended = function() {
+                        isSpeaking = false;
+                        document.getElementById('characterImage').classList.remove('speaking');
+                        updateStatus('Your turn! Click the microphone to respond.');
+                    };
+                    
+                    audio.onerror = function(event) {
+                        console.error('Audio playback error:', event);
+                        isSpeaking = false;
+                        document.getElementById('characterImage').classList.remove('speaking');
+                        updateStatus('Audio error occurred. Please continue with the conversation.');
+                        performanceMetrics.speechSynthesisErrors++;
+                    };
+                    
+                    audio.play();
+                    logSession('ai_response', text);
+                }).catch(function(error) {
+                    console.error('Polly synthesis error:', error);
+                    isSpeaking = false;
+                    document.getElementById('characterImage').classList.remove('speaking');
+                    updateStatus('Speech synthesis error. Please check your connection and try again.');
+                    performanceMetrics.speechSynthesisErrors++;
+                    showFeedback('❌ Unable to generate speech. Please check your internet connection.', false);
+                });
+                
+            } catch (error) {
+                console.error('Polly synthesis error:', error);
+                isSpeaking = false;
+                document.getElementById('characterImage').classList.remove('speaking');
+                updateStatus('Speech synthesis error. Please check your connection and try again.');
+                performanceMetrics.speechSynthesisErrors++;
+                showFeedback('❌ Unable to generate speech. Please check your internet connection.', false);
+            }
+        }
+
+        function synthesizeSpeechWithPolly(text, voiceName, speechRate) {
+            var pollyParams = {
+                Text: text,
+                OutputFormat: 'mp3',
+                VoiceId: voiceName,
+                Engine: 'standard',
+                SpeechMarkTypes: [],
+                TextType: 'text'
+            };
+            
+            if (speechRate === 'fast') {
+                pollyParams.Text = '<speak><prosody rate="fast">' + text + '</prosody></speak>';
+                pollyParams.TextType = 'ssml';
+            } else if (speechRate === 'slow') {
+                pollyParams.Text = '<speak><prosody rate="slow">' + text + '</prosody></speak>';
+                pollyParams.TextType = 'ssml';
+            }
+            
+            console.log('Polly Request:', pollyParams);
+            
+            return createPollyAudioUrl(pollyParams);
+        }
+
+        function createPollyAudioUrl(pollyParams) {
+            return fetch('/api/synthesize-speech', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    text: pollyParams.Text,
+                    voice: pollyParams.VoiceId,
+                    format: pollyParams.OutputFormat,
+                    textType: pollyParams.TextType
+                })
+            }).then(function(response) {
+                if (!response.ok) {
+                    throw new Error('HTTP error! status: ' + response.status);
+                }
+                return response.blob();
+            }).then(function(audioBlob) {
+                return URL.createObjectURL(audioBlob);
+            }).catch(function(error) {
+                console.error('Error calling Polly API:', error);
+                
+                var audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                var buffer = audioContext.createBuffer(1, audioContext.sampleRate * 2, audioContext.sampleRate);
+                var arrayBuffer = new ArrayBuffer(buffer.length * 2);
+                var blob = new Blob([arrayBuffer], { type: 'audio/wav' });
+                
+                updateStatus('[DEMO MODE] Would speak: "' + pollyParams.Text + '" with voice: ' + pollyParams.VoiceId);
+                
+                return URL.createObjectURL(blob);
+            });
+        }
+
+        function updateStatus(message) {
+            var statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            
+            statusEl.className = 'status';
+            if (message.includes('Listening') || message.includes('Speak')) {
+                statusEl.classList.add('listening');
+            } else if (message.includes('Processing')) {
+                statusEl.classList.add('processing');
+            } else if (message.includes('speaking')) {
+                statusEl.classList.add('speaking');
+            }
+        }
+
+        function updateProgress() {
+            if (currentScenario === 'opener' || currentScenario === 'pitch') {
+                var percentage = (currentProgress / maxProgress) * 100;
+                document.getElementById('progressFill').style.width = percentage + '%';
+                document.getElementById('progressText').textContent = currentProgress + '/' + maxProgress;
+            }
+        }
+
+        function showFeedback(message, isSuccess) {
+            var feedbackEl = document.getElementById('feedback');
+            feedbackEl.textContent = message;
+            feedbackEl.className = 'feedback ' + (isSuccess ? 'success' : 'failure');
+            feedbackEl.style.display = 'block';
+            
+            setTimeout(function() {
+                feedbackEl.style.display = 'none';
+            }, 5000);
+        }
+
+        function resetScenario() {
+            currentProgress = 0;
+            updateProgress();
+            document.getElementById('feedback').style.display = 'none';
+            
+            if (isSpeaking) {
+                var audioElements = document.querySelectorAll('audio');
+                audioElements.forEach(function(audio) {
+                    audio.pause();
+                    audio.remove();
+                });
+                isSpeaking = false;
+                document.getElementById('characterImage').classList.remove('speaking');
+            }
+            
+            if (isRecording) {
+                stopRecording();
+            }
+            
+            updateStatus('Scenario reset. Ready to start over!');
+            logSession('scenario_reset', 'Reset ' + scenarioData.name);
+            
+            setTimeout(function() {
+                initializeScenario();
+            }, 1000);
+        }
+
+        function goHome() {
+            if (isSpeaking) {
+                var audioElements = document.querySelectorAll('audio');
+                audioElements.forEach(function(audio) {
+                    audio.pause();
+                    audio.remove();
+                });
+                isSpeaking = false;
+            }
+            if (isRecording) {
+                stopRecording();
+            }
+            
+            if (currentScenario) {
+                logSession('scenario_end', 'Ended ' + scenarioData.name + ' at progress ' + currentProgress + '/' + maxProgress);
+            }
+            
+            document.getElementById('roleplayPage').style.display = 'none';
+            document.getElementById('homepage').style.display = 'block';
+            
+            currentScenario = null;
+            currentProgress = 0;
+        }
+
+        function logSession(action, details) {
+            var logData = {
+                timestamp: new Date().toISOString(),
+                user: userData.name || 'Anonymous',
+                email: userData.email || '',
+                action: action,
+                scenario: currentScenario || 'none',
+                progress: currentProgress,
+                details: details
+            };
+            
+            console.log('Session Log:', logData);
+            
+            try {
+                var existingLogs = JSON.parse(localStorage.getItem('coldCallLogs') || '[]');
+                existingLogs.push(logData);
+                localStorage.setItem('coldCallLogs', JSON.stringify(existingLogs));
+            } catch (error) {
+                console.error('Error logging session:', error);
+            }
+        }
+
+        function startResponseTimer() {
+            responseStartTime = Date.now();
+        }
+
+        function endResponseTimer() {
+            if (responseStartTime) {
+                var duration = Date.now() - responseStartTime;
+                performanceMetrics.averageResponseTime.push(duration);
+                responseStartTime = null;
+            }
+        }
+
+        function showStats() {
+            try {
+                var logs = JSON.parse(localStorage.getItem('coldCallLogs') || '[]');
+                var stats = {
+                    totalSessions: logs.filter(function(log) { return log.action === 'session_start'; }).length,
+                    scenariosCompleted: logs.filter(function(log) { return log.action === 'scenario_end' && log.progress >= 10; }).length,
+                    totalInputs: logs.filter(function(log) { return log.action === 'user_input'; }).length
+                };
+                
+                console.log('Training Stats:', stats);
+                alert('Training Stats:\n- Sessions: ' + stats.totalSessions + '\n- Completed Scenarios: ' + stats.scenariosCompleted + '\n- Total Responses: ' + stats.totalInputs);
+            } catch (error) {
+                console.error('Error showing stats:', error);
+            }
+        }
+
+        function adjustForMobile() {
+            var isMobile = window.innerWidth <= 768;
+            if (isMobile) {
+                document.body.style.fontSize = '14px';
+            } else {
+                document.body.style.fontSize = '16px';
+            }
+        }
+
+        // Event Listeners
+        window.addEventListener('beforeunload', function(e) {
+            if (currentScenario && (isRecording || isSpeaking)) {
+                e.preventDefault();
+                e.returnValue = 'You have an active roleplay session. Are you sure you want to leave?';
+                return e.returnValue;
+            }
+        });
+
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden && isRecording) {
+                stopRecording();
+                updateStatus('Recording stopped due to tab change. Click microphone to resume.');
+            }
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
+                e.preventDefault();
+                if (document.getElementById('roleplayPage').style.display !== 'none') {
+                    toggleMicrophone();
+                }
+            }
+            
+            if (e.code === 'Escape') {
+                if (document.getElementById('roleplayPage').style.display !== 'none') {
+                    goHome();
+                }
+            }
+        });
+
+        window.addEventListener('resize', adjustForMobile);
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Cold Call Roleplay Trainer loaded successfully!');
+            console.log('Click the logo 3 times to see training stats');
+            console.log('🎤 Using Amazon Polly for voice synthesis');
+            console.log('🤖 Using OpenAI GPT-3.5 for AI dialogue');
+            
+            adjustForMobile();
+            
+            if (!recognition) {
+                console.warn('Speech recognition not supported. Please use Chrome or Edge for the best experience.');
+            }
+            
+            // Check server configuration via health endpoint
+            checkServerConfiguration();
+
+            // Logo click stats
+            document.querySelector('.header h1').addEventListener('click', function() {
+                logoClicks++;
+                if (logoClicks >= 3) {
+                    showStats();
+                    logoClicks = 0;
+                }
+            });
+
+            // Mobile touch events
+            document.getElementById('micButton').addEventListener('touchstart', function(e) {
+                e.preventDefault();
+            });
+
+            // Speech recognition error monitoring
+            if (recognition) {
+                recognition.addEventListener('error', function() {
+                    performanceMetrics.speechRecognitionErrors++;
+                });
+            }
+        });
+
+        function checkServerConfiguration() {
+            fetch('/health')
+                .then(function(response) {
+                    return response.json();
+                })
+                .then(function(data) {
+                    console.log('📊 Server Status:', data);
+                    
+                    if (data.env.openai) {
+                        console.log('✅ OpenAI: Configured and ready');
+                    } else {
+                        console.warn('⚠️  OpenAI: Not configured on server');
+                    }
+                    
+                    if (data.env.aws) {
+                        console.log('✅ Amazon Polly: Configured and ready');
+                        console.log('📋 Region:', data.env.region);
+                        console.log('🎤 Available voices:', Object.values(POLLY_CONFIG.voices));
+                    } else {
+                        console.warn('⚠️  Amazon Polly: Not configured on server');
+                    }
+                })
+                .catch(function(error) {
+                    console.error('❌ Unable to check server status:', error);
+                    console.log('🔄 Server might still be starting up...');
+                });
+        }
+    </script>
+</body>
+</html>

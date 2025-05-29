@@ -1,0 +1,29 @@
+{
+  "name": "cold-call-roleplay-trainer",
+  "version": "1.0.0",
+  "description": "AI-powered cold call training tool with voice interaction",
+  "main": "index.html",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'No build step needed for static HTML'",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1500.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "sales",
+    "training",
+    "ai",
+    "roleplay",
+    "cold-calling",
+    "openai",
+    "amazon-polly",
+    "speech-recognition"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
