@@ -5,7 +5,7 @@
   "main": "index.html",
   "scripts": {
     "dev": "vercel dev",
-    "build": "echo 'No build step needed for static HTML'",
+    "build": "mkdir -p public && cp index.html public/",
     "deploy": "vercel --prod"
   },
   "dependencies": {
@@ -24,6 +24,6 @@
     "amazon-polly",
     "speech-recognition"
   ],
-  "author": "Your Name",
+  "author": "Harmony",
   "license": "MIT"
 }
