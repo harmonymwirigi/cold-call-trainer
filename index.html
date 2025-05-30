@@ -557,13 +557,21 @@
             }
         };
 
-        // Initialize Speech Recognition
+        // Initialize Speech Recognition with mobile support
         var recognition = null;
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            
+            // Mobile-optimized settings
             recognition.continuous = false;
             recognition.interimResults = false;
             recognition.lang = 'en-US';
+            
+            // Additional mobile settings
+            if (navigator.userAgent.match(/(iPhone|iPad|Android)/)) {
+                recognition.maxAlternatives = 1;
+                console.log('Mobile device detected - optimizing speech recognition');
+            }
         }
 
         // Performance monitoring
@@ -677,22 +685,92 @@
         function startRecording() {
             if (!recognition) return;
             
+            // Request microphone permission explicitly on mobile
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ audio: true })
+                    .then(function(stream) {
+                        // Permission granted, start speech recognition
+                        initializeSpeechRecognition();
+                        // Stop the media stream as we don't need it for speech recognition
+                        stream.getTracks().forEach(track => track.stop());
+                    })
+                    .catch(function(error) {
+                        console.error('Microphone permission denied:', error);
+                        updateStatus('Microphone permission denied. Please allow microphone access and try again.');
+                        showFeedback('❌ Please allow microphone access in your browser settings.', false);
+                    });
+            } else {
+                // Fallback for older browsers
+                initializeSpeechRecognition();
+            }
+        }
+
+        function initializeSpeechRecognition() {
             isRecording = true;
             document.getElementById('micButton').classList.add('recording');
             updateStatus('Listening... Speak now!');
             
+            // Configure recognition for mobile
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+            
+            // Add mobile-specific settings
+            if (navigator.userAgent.match(/(iPhone|iPad|Android)/)) {
+                recognition.maxAlternatives = 1;
+            }
+            
+            recognition.onstart = function() {
+                console.log('Speech recognition started');
+                updateStatus('🎤 Listening... Speak clearly!');
+            };
+            
             recognition.onresult = function(event) {
-                var transcript = event.results[0][0].transcript;
-                handleUserInput(transcript);
+                console.log('Speech recognition result:', event);
+                if (event.results && event.results[0] && event.results[0][0]) {
+                    var transcript = event.results[0][0].transcript;
+                    console.log('Transcript:', transcript);
+                    handleUserInput(transcript);
+                } else {
+                    updateStatus('No speech detected. Please try again.');
+                    stopRecording();
+                }
             };
             
             recognition.onerror = function(event) {
-                console.error('Speech recognition error:', event.error);
-                updateStatus('Sorry, I couldn\'t hear you clearly. Please try again.');
+                console.error('Speech recognition error:', event);
+                var errorMessage = 'Sorry, I couldn\'t hear you clearly.';
+                
+                switch(event.error) {
+                    case 'not-allowed':
+                    case 'service-not-allowed':
+                        errorMessage = '🎤 Microphone access denied. Please allow microphone permission and try again.';
+                        showFeedback('❌ Please enable microphone access in your browser settings.', false);
+                        break;
+                    case 'no-speech':
+                        errorMessage = '🔇 No speech detected. Please speak louder and try again.';
+                        break;
+                    case 'network':
+                        errorMessage = '🌐 Network error. Please check your connection.';
+                        break;
+                    case 'audio-capture':
+                        errorMessage = '🎤 Microphone not available. Please check your device.';
+                        break;
+                    default:
+                        errorMessage = '❌ Speech recognition error. Please try again.';
+                }
+                
+                updateStatus(errorMessage);
                 stopRecording();
             };
             
             recognition.onend = function() {
+                console.log('Speech recognition ended');
+                stopRecording();
+            };
+            
+            recognition.onnomatch = function() {
+                updateStatus('No speech recognized. Please try again.');
                 stopRecording();
             };
             
@@ -1201,7 +1279,7 @@
 
         window.addEventListener('resize', adjustForMobile);
 
-        // Initialize on page load
+        // Mobile-friendly touch events and permissions
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Cold Call Roleplay Trainer loaded successfully!');
             console.log('Click the logo 3 times to see training stats');
@@ -1210,8 +1288,32 @@
             
             adjustForMobile();
             
+            // Check for mobile device
+            var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            if (isMobile) {
+                console.log('📱 Mobile device detected');
+                
+                // Request permissions on mobile
+                if (navigator.permissions) {
+                    navigator.permissions.query({ name: 'microphone' }).then(function(result) {
+                        console.log('🎤 Microphone permission:', result.state);
+                        if (result.state === 'denied') {
+                            console.warn('⚠️ Microphone permission denied');
+                        }
+                    });
+                }
+            }
+            
             if (!recognition) {
-                console.warn('Speech recognition not supported. Please use Chrome or Edge for the best experience.');
+                var message = 'Speech recognition not supported. ';
+                if (isMobile) {
+                    message += 'Please use Chrome on Android or Safari on iOS.';
+                } else {
+                    message += 'Please use Chrome or Edge for the best experience.';
+                }
+                console.warn(message);
+            } else {
+                console.log('✅ Speech recognition supported');
             }
             
             // Check server configuration via health endpoint
@@ -1226,10 +1328,27 @@
                 }
             });
 
-            // Mobile touch events
-            document.getElementById('micButton').addEventListener('touchstart', function(e) {
+            // Mobile touch events with better handling
+            var micButton = document.getElementById('micButton');
+            
+            // Prevent double-tap zoom on mobile
+            micButton.addEventListener('touchstart', function(e) {
                 e.preventDefault();
             });
+            
+            // Add touch feedback
+            micButton.addEventListener('touchstart', function(e) {
+                this.style.transform = 'scale(0.95)';
+            });
+            
+            micButton.addEventListener('touchend', function(e) {
+                this.style.transform = '';
+            });
+            
+            // Handle mobile-specific user interaction requirement
+            document.addEventListener('touchstart', function() {
+                // This ensures user gesture is registered for mobile browsers
+            }, { once: true });
 
             // Speech recognition error monitoring
             if (recognition) {
