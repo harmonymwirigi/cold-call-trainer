@@ -9,5 +9,6 @@ export default function handler(req, res) {
             aws: !!process.env.AWS_ACCESS_KEY_ID,
             region: process.env.AWS_REGION || 'us-east-1'
         }
+        
     });
 }
