@@ -1,4 +1,99 @@
-/**
+function hideUnlockNotice() {
+    app.hide30MinuteUnlock();
+}
+
+// Debug functions for troubleshooting
+function debugModuleStates() {
+    if (!app) {
+        console.log('App not initialized yet');
+        return;
+    }
+    
+    console.log('🔍 DEBUG: Current Module States');
+    console.log('================================');
+    Object.entries(app.modules).forEach(([id, module]) => {
+        console.log(`${id.toUpperCase()}:`, {
+            unlocked: module.unlocked,
+            marathonCompleted: module.marathonCompleted,
+            legendAvailable: module.legendAvailable,
+            legendCompleted: module.legendCompleted
+        });
+    });
+    
+    console.log('\n🔍 DEBUG: Module Progress');
+    console.log('==========================');
+    console.log(app.moduleProgress);
+    
+    console.log('\n🔍 DEBUG: Current User');
+    console.log('=======================');
+    console.log(app.currentUser);
+}
+
+function forceUnlockModule(moduleId) {
+    if (!app) {
+        console.log('App not initialized yet');
+        return;
+    }
+    
+    if (app.modules[moduleId]) {
+        app.modules[moduleId].unlocked = true;
+        app.saveProgress();
+        app.updateModuleUI();
+        console.log(`✅ Force unlocked module: ${moduleId}`);
+    } else {
+        console.log(`❌ Module not found: ${moduleId}`);
+    }
+}
+
+function resetAllProgress() {
+    if (!app) {
+        console.log('App not initialized yet');
+        return;
+    }
+    
+    // Reset modules to initial state
+    Object.keys(app.modules).forEach(moduleId => {
+        app.modules[moduleId].unlocked = moduleId === 'warmup'; // Only warmup unlocked
+        app.modules[moduleId].marathonCompleted = false;
+        app.modules[moduleId].legendAvailable = false;
+        app.modules[moduleId].legendCompleted = false;
+    });
+    
+    // Clear progress
+    app.moduleProgress = {};
+    app.totalPracticeTime = 0;
+    
+    // Save and update
+    app.saveProgress();
+    app.updateModuleUI();
+    app.updateProgressStats();
+    
+    console.log('🔄 All progress reset');
+}
+
+function completeModule1() {
+    if (!app) {
+        console.log('App not initialized yet');
+        return;
+    }
+    
+    // Force complete warmup module
+    app.modules.warmup.marathonCompleted = true;
+    app.modules.warmup.legendAvailable = true;
+    app.modules.opener.unlocked = true;
+    
+    // Update progress
+    if (!app.moduleProgress.warmup) {
+        app.moduleProgress.warmup = { marathon: 0, practice: 0, legend: false };
+    }
+    app.moduleProgress.warmup.marathon = 10;
+    
+    app.saveProgress();
+    app.updateModuleUI();
+    app.updateProgressStats();
+    
+    console.log('✅ Forced completion of Module 1 (Warmup)');
+}/**
  * Cold Call Roleplay Trainer - Main Application
  * Enhanced with module gating, phone UI, and improved features
  */
@@ -406,6 +501,8 @@ class ColdCallTrainer {
     }
     
     updateModuleUI() {
+        console.log('🔄 Updating module UI with current states:', this.modules);
+        
         Object.values(this.modules).forEach(module => {
             const card = document.getElementById(`module-${module.id}`);
             const statusIcon = document.getElementById(`status-${module.id}`);
@@ -413,7 +510,17 @@ class ColdCallTrainer {
             const progressText = document.getElementById(`progressText-${module.id}`);
             const legendBtn = document.getElementById(`legend-${module.id}`);
             
-            if (!card) return;
+            if (!card) {
+                console.warn(`⚠️ Module card not found: module-${module.id}`);
+                return;
+            }
+            
+            console.log(`📋 Updating module ${module.id}:`, {
+                unlocked: module.unlocked,
+                marathonCompleted: module.marathonCompleted,
+                legendAvailable: module.legendAvailable,
+                legendCompleted: module.legendCompleted
+            });
             
             // Update lock status
             if (module.unlocked) {
@@ -423,8 +530,11 @@ class ColdCallTrainer {
                 // Enable buttons
                 const buttons = card.querySelectorAll('.btn');
                 buttons.forEach(btn => {
-                    if (!btn.id.includes('legend') || module.legendAvailable) {
+                    if (!btn.id || !btn.id.includes('legend') || module.legendAvailable) {
                         btn.disabled = false;
+                        console.log(`✅ Enabled button: ${btn.textContent} for ${module.id}`);
+                    } else {
+                        console.log(`❌ Legend button still disabled for ${module.id}`);
                     }
                 });
             } else {
@@ -433,7 +543,10 @@ class ColdCallTrainer {
                 
                 // Disable buttons
                 const buttons = card.querySelectorAll('.btn');
-                buttons.forEach(btn => btn.disabled = true);
+                buttons.forEach(btn => {
+                    btn.disabled = true;
+                    console.log(`🔒 Disabled button: ${btn.textContent} for ${module.id}`);
+                });
             }
             
             // Update progress
@@ -462,6 +575,7 @@ class ColdCallTrainer {
                 if (module.legendAvailable && !module.legendCompleted) {
                     legendBtn.disabled = false;
                     legendBtn.textContent = 'Legend Mode';
+                    console.log(`🏆 Legend mode available for ${module.id}`);
                 } else if (module.legendCompleted) {
                     legendBtn.disabled = true;
                     legendBtn.textContent = 'Legend Complete ✓';
@@ -471,6 +585,8 @@ class ColdCallTrainer {
                 }
             }
         });
+        
+        console.log('✅ Module UI update complete');
     }
     
     updateProgressStats() {
@@ -523,6 +639,8 @@ class ColdCallTrainer {
         const module = this.modules[moduleId];
         if (!module) return;
         
+        console.log(`🎯 Completing module: ${moduleId} in ${mode} mode`);
+        
         if (mode === 'marathon') {
             module.marathonCompleted = true;
             module.legendAvailable = true;
@@ -533,6 +651,7 @@ class ColdCallTrainer {
             if (currentIndex < moduleOrder.length - 1) {
                 const nextModuleId = moduleOrder[currentIndex + 1];
                 this.modules[nextModuleId].unlocked = true;
+                console.log(`🔓 Unlocked next module: ${nextModuleId}`);
             }
             
             this.showSuccess(`🎉 Marathon completed! Legend Mode unlocked and next module available.`);
@@ -541,9 +660,16 @@ class ColdCallTrainer {
             this.showSuccess(`🏆 Legend Mode completed! You're a master of ${module.name}!`);
         }
         
+        // Force save progress immediately
         this.saveProgress();
+        
+        // Update UI immediately  
         this.updateModuleUI();
+        this.updateProgressStats();
+        
         this.logActivity('module_completed', { module: moduleId, mode });
+        
+        console.log('📊 Current module states:', this.modules);
     }
     
     // Character and Call Management
@@ -1104,7 +1230,10 @@ class ColdCallTrainer {
         this.currentProgress++;
         this.updateCallProgress();
         
+        console.log(`✅ Progress: ${this.currentProgress}/${this.maxProgress} in ${this.currentMode} mode`);
+        
         if (this.currentProgress >= this.maxProgress) {
+            console.log(`🎯 Reached max progress - completing ${this.currentMode} mode`);
             this.completeCurrentCall();
         } else {
             this.showQuickSuccess();
@@ -1112,6 +1241,9 @@ class ColdCallTrainer {
     }
     
     completeCurrentCall() {
+        // Save progress immediately before showing completion
+        this.saveProgress();
+        
         setTimeout(() => {
             this.endCall(true);
             this.completeModule(this.currentModule, this.currentMode);
