@@ -1,99 +1,4 @@
-function hideUnlockNotice() {
-    app.hide30MinuteUnlock();
-}
-
-// Debug functions for troubleshooting
-function debugModuleStates() {
-    if (!app) {
-        console.log('App not initialized yet');
-        return;
-    }
-    
-    console.log('🔍 DEBUG: Current Module States');
-    console.log('================================');
-    Object.entries(app.modules).forEach(([id, module]) => {
-        console.log(`${id.toUpperCase()}:`, {
-            unlocked: module.unlocked,
-            marathonCompleted: module.marathonCompleted,
-            legendAvailable: module.legendAvailable,
-            legendCompleted: module.legendCompleted
-        });
-    });
-    
-    console.log('\n🔍 DEBUG: Module Progress');
-    console.log('==========================');
-    console.log(app.moduleProgress);
-    
-    console.log('\n🔍 DEBUG: Current User');
-    console.log('=======================');
-    console.log(app.currentUser);
-}
-
-function forceUnlockModule(moduleId) {
-    if (!app) {
-        console.log('App not initialized yet');
-        return;
-    }
-    
-    if (app.modules[moduleId]) {
-        app.modules[moduleId].unlocked = true;
-        app.saveProgress();
-        app.updateModuleUI();
-        console.log(`✅ Force unlocked module: ${moduleId}`);
-    } else {
-        console.log(`❌ Module not found: ${moduleId}`);
-    }
-}
-
-function resetAllProgress() {
-    if (!app) {
-        console.log('App not initialized yet');
-        return;
-    }
-    
-    // Reset modules to initial state
-    Object.keys(app.modules).forEach(moduleId => {
-        app.modules[moduleId].unlocked = moduleId === 'warmup'; // Only warmup unlocked
-        app.modules[moduleId].marathonCompleted = false;
-        app.modules[moduleId].legendAvailable = false;
-        app.modules[moduleId].legendCompleted = false;
-    });
-    
-    // Clear progress
-    app.moduleProgress = {};
-    app.totalPracticeTime = 0;
-    
-    // Save and update
-    app.saveProgress();
-    app.updateModuleUI();
-    app.updateProgressStats();
-    
-    console.log('🔄 All progress reset');
-}
-
-function completeModule1() {
-    if (!app) {
-        console.log('App not initialized yet');
-        return;
-    }
-    
-    // Force complete warmup module
-    app.modules.warmup.marathonCompleted = true;
-    app.modules.warmup.legendAvailable = true;
-    app.modules.opener.unlocked = true;
-    
-    // Update progress
-    if (!app.moduleProgress.warmup) {
-        app.moduleProgress.warmup = { marathon: 0, practice: 0, legend: false };
-    }
-    app.moduleProgress.warmup.marathon = 10;
-    
-    app.saveProgress();
-    app.updateModuleUI();
-    app.updateProgressStats();
-    
-    console.log('✅ Forced completion of Module 1 (Warmup)');
-}/**
+/**
  * Cold Call Roleplay Trainer - Main Application
  * Enhanced with module gating, phone UI, and improved features
  */
@@ -268,9 +173,9 @@ class ColdCallTrainer {
             warmup: {
                 id: 'warmup',
                 name: 'Warm-Up Challenge',
-                description: 'Quick practice prompts to get you ready',
+                description: 'Rapid-fire warm-up so you practice every key line before live dialing',
                 order: 1,
-                unlocked: true,
+                unlocked: true, // Always unlocked
                 marathonCompleted: false,
                 legendAvailable: false,
                 legendCompleted: false
@@ -278,9 +183,9 @@ class ColdCallTrainer {
             opener: {
                 id: 'opener',
                 name: 'Opener + Early Objections',
-                description: 'Practice opening lines and handle early objections',
+                description: 'Pressure-test your opener and early-objection handling skills',
                 order: 2,
-                unlocked: false,
+                unlocked: true, // Unlocked for testing
                 marathonCompleted: false,
                 legendAvailable: false,
                 legendCompleted: false
@@ -288,9 +193,9 @@ class ColdCallTrainer {
             pitch: {
                 id: 'pitch',
                 name: 'Pitch + Post-Pitch Objections',
-                description: 'Perfect your pitch and master objection handling',
+                description: 'Practice delivering pitches, handling objections, and booking meetings',
                 order: 3,
-                unlocked: false,
+                unlocked: true, // Unlocked for testing
                 marathonCompleted: false,
                 legendAvailable: false,
                 legendCompleted: false
@@ -298,9 +203,9 @@ class ColdCallTrainer {
             fullcall: {
                 id: 'fullcall',
                 name: 'Full Cold Call Simulation',
-                description: 'Complete end-to-end cold call experience',
+                description: 'Complete cold-call from opener to meeting booking',
                 order: 4,
-                unlocked: false,
+                unlocked: true, // Unlocked for testing
                 marathonCompleted: false,
                 legendAvailable: false,
                 legendCompleted: false
@@ -308,9 +213,9 @@ class ColdCallTrainer {
             powerhour: {
                 id: 'powerhour',
                 name: 'Power Hour Challenge',
-                description: 'Rapid-fire calls with time pressure',
+                description: 'Ten back-to-back cold calls to build stamina and consistency',
                 order: 5,
-                unlocked: false,
+                unlocked: true, // Unlocked for testing
                 marathonCompleted: false,
                 legendAvailable: false,
                 legendCompleted: false
@@ -334,11 +239,19 @@ class ColdCallTrainer {
             
             this.recognition.onresult = (event) => {
                 const lastResultIndex = event.results.length - 1;
-                const transcript = event.results[lastResultIndex][0].transcript.trim();
+                const result = event.results[lastResultIndex][0];
+                const transcript = result.transcript.trim();
+                const confidence = result.confidence || 0.8; // Fallback confidence
+                
+                console.log('🗣️ User said:', transcript, 'Confidence:', confidence);
                 
                 if (transcript && transcript.length > 2) {
-                    console.log('🗣️ User said:', transcript);
-                    this.handleUserInput(transcript);
+                    // Check if we're in a repeat loop
+                    if (this.isInRepeatLoop) {
+                        this.handleRepeatAttempt(transcript, confidence);
+                    } else {
+                        this.handleUserInput(transcript, confidence);
+                    }
                 }
             };
             
@@ -360,6 +273,13 @@ class ColdCallTrainer {
         } else {
             console.warn('Speech recognition not supported');
         }
+        
+        // Initialize repeat loop variables
+        this.isInRepeatLoop = false;
+        this.repeatTarget = '';
+        this.repeatType = ''; // 'grammar', 'vocabulary', 'pronunciation'
+        this.repeatAttempts = 0;
+        this.maxRepeatAttempts = 3;
     }
     
     initializeAudio() {
@@ -800,34 +720,52 @@ class ColdCallTrainer {
         
         const welcomeMessages = {
             warmup: [
-                `Hello, this is ${char.name}. Who's calling?`,
-                `${char.name} speaking, how can I help you?`,
-                `This is ${char.name}, what's this regarding?`
+                `Welcome to warm-up training! I'm ${char.name}. I'll give you 25 rapid-fire prompts. Ready? Here's your first one:`,
+                `Hi, I'm ${char.name}. Let's do some quick warm-up drills. I'll give you different scenarios to practice. Starting now:`,
+                `${char.name} here. Time for rapid-fire practice! I'll throw different prompts at you. First up:`
             ],
             opener: [
-                `${char.name} here, make it quick.`,
-                `Hello, ${char.name} speaking. What do you want?`,
-                `This is ${char.name}, I'm quite busy right now.`
+                `Hello, this is ${char.name}. I'm quite busy, so make this quick.`,
+                `${char.name} speaking. What do you want?`,
+                `This is ${char.name}. I don't have much time, what's this about?`,
+                `${char.name} here. I wasn't expecting a call.`
             ],
             pitch: [
-                `Hi, this is ${char.name}. I'll give you two minutes.`,
-                `${char.name} speaking. What's your pitch?`,
-                `This is ${char.name}. You've got my attention for now.`
+                `Hi, this is ${char.name}. Go ahead with your pitch.`,
+                `${char.name} speaking. I'll give you two minutes, what's your pitch?`,
+                `This is ${char.name}. You've got my attention, now pitch me.`,
+                `${char.name} here. I'm listening, what are you selling?`
             ],
             fullcall: [
-                `Hello, ${char.name} speaking.`,
-                `This is ${char.name}, who am I speaking with?`,
-                `${char.name} here, what can I do for you?`
+                `Hello, this is ${char.name}.`,
+                `${char.name} speaking, who is this?`,
+                `This is ${char.name}, how can I help you?`,
+                `${char.name} here, what's this regarding?`
             ],
             powerhour: [
-                `${char.name} speaking, you've got 30 seconds.`,
-                `This is ${char.name}, I'm between meetings.`,
-                `${char.name} here, talk fast.`
+                `Call 1. Hello, this is ${char.name}. You've got 30 seconds.`,
+                `Power Hour Call 1. This is ${char.name}, make it quick.`,
+                `${char.name} speaking. I'm between meetings, talk fast.`,
+                `Call 1 of 10. ${char.name} here, what do you want?`
             ]
         };
         
         const messages = welcomeMessages[module] || welcomeMessages.warmup;
-        return messages[Math.floor(Math.random() * messages.length)];
+        let selectedMessage = messages[Math.floor(Math.random() * messages.length)];
+        
+        // Add first prompt for warmup
+        if (module === 'warmup') {
+            const firstPrompts = [
+                "Give me your opener.",
+                "What's your pitch in one sentence?",
+                "Ask me for a meeting.",
+                "Handle this objection: 'What's this about?'"
+            ];
+            const firstPrompt = firstPrompts[Math.floor(Math.random() * firstPrompts.length)];
+            selectedMessage += ` ${firstPrompt}`;
+        }
+        
+        return selectedMessage;
     }
     
     // Speech and Audio Management
@@ -869,7 +807,7 @@ class ColdCallTrainer {
         }
     }
     
-    handleUserInput(transcript) {
+    handleUserInput(transcript, confidence = 0.8) {
         if (!this.isCallActive) return;
         
         // Track speaking time
@@ -881,19 +819,145 @@ class ColdCallTrainer {
         
         this.lastInteractionTime = Date.now();
         this.updateVoiceStatus('Processing...');
-        this.logActivity('user_input', { transcript, module: this.currentModule, progress: this.currentProgress });
+        this.logActivity('user_input', { 
+            transcript, 
+            confidence,
+            module: this.currentModule, 
+            progress: this.currentProgress 
+        });
         
         // Generate AI response
-        this.generateAIResponse(transcript);
+        this.generateAIResponse(transcript, confidence);
     }
     
-    async generateAIResponse(userInput) {
+    handleRepeatAttempt(transcript, confidence) {
+        console.log(`🔄 Repeat attempt: "${transcript}" (confidence: ${confidence}) vs target: "${this.repeatTarget}"`);
+        
+        this.repeatAttempts++;
+        
+        // Calculate similarity and confidence check
+        const similarity = this.calculateSimilarity(transcript.toLowerCase(), this.repeatTarget.toLowerCase());
+        const minConfidence = 0.8;
+        const minSimilarity = 0.8;
+        
+        console.log(`📊 Similarity: ${similarity}, Confidence: ${confidence}`);
+        
+        if (confidence >= minConfidence && similarity >= minSimilarity) {
+            // Success! Exit repeat loop
+            this.exitRepeatLoop(true);
+            this.updateVoiceStatus('Great! Moving on...');
+            
+            setTimeout(() => {
+                if (this.isCallActive && this.continuousListening) {
+                    this.startListening();
+                }
+            }, 1000);
+        } else if (this.repeatAttempts >= this.maxRepeatAttempts) {
+            // Max attempts reached, continue anyway
+            this.exitRepeatLoop(false);
+            this.updateVoiceStatus('Let\'s continue...');
+            
+            setTimeout(() => {
+                if (this.isCallActive && this.continuousListening) {
+                    this.startListening();
+                }
+            }, 1000);
+        } else {
+            // Try again
+            const feedback = confidence < minConfidence ? 
+                'Try speaking more clearly.' : 
+                'Try to match the pronunciation exactly.';
+                
+            this.updateVoiceStatus(feedback);
+            this.speakAI(`${feedback} Please repeat: "${this.repeatTarget}"`);
+        }
+    }
+    
+    calculateSimilarity(str1, str2) {
+        // Simple similarity calculation using Levenshtein distance
+        const longer = str1.length > str2.length ? str1 : str2;
+        const shorter = str1.length > str2.length ? str2 : str1;
+        
+        if (longer.length === 0) return 1.0;
+        
+        const distance = this.levenshteinDistance(longer, shorter);
+        return (longer.length - distance) / longer.length;
+    }
+    
+    levenshteinDistance(str1, str2) {
+        const matrix = [];
+        
+        for (let i = 0; i <= str2.length; i++) {
+            matrix[i] = [i];
+        }
+        
+        for (let j = 0; j <= str1.length; j++) {
+            matrix[0][j] = j;
+        }
+        
+        for (let i = 1; i <= str2.length; i++) {
+            for (let j = 1; j <= str1.length; j++) {
+                if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+                    matrix[i][j] = matrix[i - 1][j - 1];
+                } else {
+                    matrix[i][j] = Math.min(
+                        matrix[i - 1][j - 1] + 1,
+                        matrix[i][j - 1] + 1,
+                        matrix[i - 1][j] + 1
+                    );
+                }
+            }
+        }
+        
+        return matrix[str2.length][str1.length];
+    }
+    
+    startRepeatLoop(target, type = 'pronunciation') {
+        console.log(`🔄 Starting repeat loop for: "${target}" (${type})`);
+        
+        this.isInRepeatLoop = true;
+        this.repeatTarget = target;
+        this.repeatType = type;
+        this.repeatAttempts = 0;
+        
+        this.updateVoiceStatus(`Repeat: "${target}"`);
+    }
+    
+    exitRepeatLoop(success) {
+        console.log(`🔄 Exiting repeat loop. Success: ${success}`);
+        
+        this.isInRepeatLoop = false;
+        this.repeatTarget = '';
+        this.repeatType = '';
+        this.repeatAttempts = 0;
+        
+        if (success) {
+            this.showQuickSuccess();
+        }
+    }
+    
+    async generateAIResponse(userInput, confidence = 0.8) {
         try {
             const prompt = this.buildGPTPrompt(userInput);
             const response = await this.callOpenAI(prompt);
             
             // Parse response for feedback and next action
             const parsedResponse = this.parseAIResponse(response);
+            
+            // Check for repeat cues in the response
+            const repeatMatch = parsedResponse.message.match(/Please repeat:\s*[""'']([^""'']+)[""'']/i);
+            
+            if (repeatMatch) {
+                const targetPhrase = repeatMatch[1];
+                console.log('🔄 Detected repeat cue:', targetPhrase);
+                
+                // Start repeat loop
+                this.startRepeatLoop(targetPhrase, 'pronunciation');
+                
+                // Speak the instruction
+                this.speakAI(parsedResponse.message);
+                return;
+            }
             
             // Speak the AI response
             this.speakAI(parsedResponse.message);
@@ -922,22 +986,91 @@ class ColdCallTrainer {
         const module = this.modules[this.currentModule];
         const context = this.getConversationContext();
         
+        // Enhanced system prompts based on the new detailed prompts
         const systemPrompts = {
-            warmup: `You are ${char.name}, a ${char.title} at ${char.company}. You're receiving a cold call. Give brief, natural responses and occasional challenges. Personality: ${char.personality}. Keep responses under 50 words.`,
+            warmup: `You are ${char.name}, ${char.personality}. You're running Module 3 - Warm-Up Quickfire training.
             
-            opener: `You are ${char.name}, a busy ${char.title}. Respond to the caller's opener with realistic early objections like "I'm not interested", "I'm too busy", "Send me info", etc. Evaluate if their opener was good (greeting + name + reason for calling). Be ${char.personality}.`,
-            
-            pitch: `You are ${char.name}, listening to a pitch. Respond with post-pitch objections like "Price too high", "How do I know it works?", "Need time to decide", etc. Evaluate the pitch quality. Personality: ${char.personality}.`,
-            
-            fullcall: `You are ${char.name}, a realistic business prospect. Act naturally - sometimes interested, sometimes skeptical. Interrupt with questions and objections. Respond to openers, discovery, pitches, and closes realistically. Personality: ${char.personality}.`,
-            
-            powerhour: `You are ${char.name} in a power hour scenario. Respond quickly and with urgency. Sometimes interested, sometimes rejecting fast. Keep responses very brief (under 30 words). Create time pressure. Personality: ${char.personality}.`
+PURPOSE: Rapid-fire warm-up so the rep practices every key line before live dialing. Ask 25 prompts in random order.
+
+FLOW: Pick random prompts from the master list. After each response, immediately give the next prompt. No detailed coaching during drill.
+
+PROMPTS INCLUDE:
+- Give your opener
+- What's your pitch in one sentence?  
+- Ask me for a meeting
+- Handle objections like: "What's this about?", "I'm not interested", "Send me an email"
+- Post-pitch objections like: "It's too expensive", "We have no budget", "Your competitor is cheaper"
+
+Keep responses brief and immediately move to the next prompt. Personality: ${char.personality}.`,
+
+            opener: `You are ${char.name}, a ${char.title} at ${char.company}. You're running Module 1 - Opener + Early Objection Practice.
+
+PURPOSE: Pressure-test the sales rep's opener and early-objection handling. The drill STOPS after the first objection is handled.
+
+FLOW LOGIC:
+- START in slow mode. Wait for the rep's opener.
+- Respond with ONE random early objection from the list.
+- Judge using RUBRIC: (1) Shows empathy (2) Non-argumentative language (3) Addresses/reframes objection (4) Ends with forward-moving question.
+- If PASS: "Great! Want another objection?" If fail: coaching feedback.
+- Mode progression: slow (6 passes) → marathon (10 objections) → legend (15 objections)
+
+EARLY OBJECTIONS: "What's this about?", "I'm not interested", "We don't take cold calls", "Now is not a good time", "I have a meeting", "Can you call me later?", "Send me an email", "Who gave you this number?", "What are you trying to sell me?", "Is this a sales call?", "We are ok for the moment", "We're not looking for anything", "How long is this going to take?", "What company are you calling from?", "I never heard of you"
+
+Current progress: ${this.currentProgress}/${this.maxProgress}. Mode: ${this.currentMode}. Personality: ${char.personality}.`,
+
+            pitch: `You are ${char.name}, a ${char.title} at ${char.company}. You're running Module 2 - Pitch + Post-Pitch Objection + Meeting.
+
+PURPOSE: Practice delivering a pitch, handling post-pitch objections, and booking a meeting.
+
+FLOW LOGIC:
+1. AI says: "Go ahead with your pitch" if learner hasn't pitched yet
+2. After pitch, give ONE objection from remaining list
+3. Learner must: (a) Address/reframe objection AND (b) Ask for a meeting
+4. When AI agrees to meeting, ALWAYS reject first suggested time slot: "That slot doesn't work for me"
+5. Accept second time slot, then say "Great, see you then! Ready for another pitch?"
+
+POST-PITCH OBJECTIONS: "It's too expensive for us", "We have no budget right now", "Your competitor is cheaper", "This isn't a good time", "We've already set this year's budget", "Call me back next quarter", "We already use a competitor", "How exactly are you better?", "I've never heard of your company", "I'm not the decision-maker", "I need approval from my team", "How long does this take to implement?"
+
+Current progress: ${this.currentProgress}/${this.maxProgress}. Mode: ${this.currentMode}. Personality: ${char.personality}.`,
+
+            fullcall: `You are ${char.name}, a ${char.title} at ${char.company}. You're running Module 4 - Full Cold-Call simulation.
+
+PURPOSE: Simulate a live cold-call from hello to meeting booking. Learner must clear every gate in order:
+1. Handle early objection after opener
+2. Deliver a pitch  
+3. Handle post-pitch objection
+4. Ask for meeting → prospect agrees
+5. Negotiate day & time (first slot rejected, second accepted)
+
+PASS CRITERIA: 
+- Early objection: empathy + non-argumentative + address/reframe + forward question
+- Post-pitch: same criteria + meeting ask
+- Meeting negotiation: first slot rejected, second accepted
+
+You may use mild profanity if feeling hostile. Act like a real business prospect - sometimes interested, sometimes skeptical, with natural interruptions and reactions.
+
+Current stage: opener. Turn count: ${this.currentProgress}/25. Personality: ${char.personality}.`,
+
+            powerhour: `You are ${char.name}, a ${char.title} at ${char.company}. You're running Module 5 - Power Hour (10 back-to-back cold calls).
+
+PURPOSE: Run ten cold-call simulations in one session. Each call follows the full "Opener → Pitch → Meeting" flow.
+
+CALL FLOW: Same as Module 4 but faster pace. Each call has 15-turn cap. After every call: instant score (0-4), micro-coaching, auto-start next call.
+
+SCORING:
+0 = fail early objection
+1 = fail first post-pitch objection  
+2 = handled objections but no meeting ask
+3 = meeting agreed but no firm time
+4 = meeting booked (second slot accepted)
+
+You're prospect #${this.currentProgress + 1} of 10. Be challenging but fair. Use time pressure. Personality: ${char.personality}.`
         };
         
         const messages = [
             {
                 role: "system",
-                content: systemPrompts[this.currentModule] + `\n\nCurrent progress: ${this.currentProgress}/${this.maxProgress}. Mode: ${this.currentMode}. Context: ${context}`
+                content: systemPrompts[this.currentModule] + `\n\nContext: ${context}`
             },
             {
                 role: "user",
@@ -1001,41 +1134,72 @@ class ColdCallTrainer {
     generateFallbackResponse() {
         const char = this.currentCharacter;
         const module = this.currentModule;
+        const progress = this.currentProgress;
         
         const fallbackResponses = {
             warmup: [
-                "That's interesting. Can you tell me more?",
-                "I see. What exactly are you offering?",
-                "Okay, I'm listening. Go ahead.",
-                "What makes your solution different?"
+                "Give me your opener.",
+                "What's your pitch in one sentence?",
+                "Ask me for a meeting.",
+                "Handle this: 'What's this about?'",
+                "Handle this: 'I'm not interested.'",
+                "Handle this: 'Send me an email.'",
+                "Handle this: 'We don't take cold calls.'",
+                "Handle this: 'It's too expensive.'",
+                "Handle this: 'We have no budget.'"
             ],
             opener: [
-                "I'm not interested right now.",
-                "I'm quite busy. What's this about?",
-                "We're happy with our current provider.",
-                "Can you send me some information instead?",
-                "I don't have time for sales calls."
+                "What's this about?",
+                "I'm not interested.",
+                "We don't take cold calls.",
+                "Now is not a good time.",
+                "I have a meeting.",
+                "Can you call me later?",
+                "Send me an email.",
+                "Who gave you this number?",
+                "What are you trying to sell me?",
+                "Is this a sales call?",
+                "We are ok for the moment.",
+                "We're not looking for anything right now.",
+                "How long is this going to take?",
+                "What company are you calling from?",
+                "I never heard of you."
             ],
             pitch: [
-                "That sounds expensive. What's the cost?",
-                "How do I know this will actually work?",
-                "I need to discuss this with my team first.",
-                "What kind of results can you guarantee?",
-                "We've tried similar solutions before without success."
+                "Go ahead with your pitch.",
+                "It's too expensive for us.",
+                "We have no budget for this right now.",
+                "Your competitor is cheaper.",
+                "This isn't a good time.",
+                "We've already set this year's budget.",
+                "Call me back next quarter.",
+                "We already use a competitor and we're happy.",
+                "How exactly are you better than the competition?",
+                "I've never heard of your company.",
+                "I'm not the decision-maker.",
+                "I need approval from my team first.",
+                "How long does this take to implement?",
+                "What happens if this doesn't work as promised?"
             ],
             fullcall: [
-                "What company are you with again?",
-                "How did you get my number?",
-                "I'm in the middle of something. Can you call back?",
-                "What exactly are you selling?",
-                "Do you have references I can check?"
+                "Hello, this is " + char.name + ".",
+                "What's this about?",
+                "I'm quite busy right now.",
+                "Go ahead with your pitch.",
+                "That sounds expensive.",
+                "I need to think about it.",
+                "That time doesn't work for me.", // First slot rejection
+                "Great, see you then!" // Second slot acceptance
             ],
             powerhour: [
+                "Call " + (progress + 1) + ". Hello, this is " + char.name + ".",
                 "Make it quick, I have another meeting.",
-                "Thirty seconds, go.",
+                "What's this about?",
                 "Not interested, thanks.",
-                "Send me an email instead.",
-                "I'm hanging up now."
+                "Your price is too high.",
+                "I'm hanging up now.",
+                "That time doesn't work.",
+                "Fine, let's meet then."
             ]
         };
         
@@ -1043,12 +1207,14 @@ class ColdCallTrainer {
         const response = responses[Math.floor(Math.random() * responses.length)];
         
         // Add feedback for marathon/legend modes
-        if (this.currentMode === 'marathon' || this.currentMode === 'legend') {
+        if ((this.currentMode === 'marathon' || this.currentMode === 'legend') && module !== 'warmup') {
             const feedbackOptions = [
                 "FEEDBACK: SUCCESS - Good approach, keep going!",
                 "FEEDBACK: RETRY - Try to be more specific about the value you provide.",
                 "FEEDBACK: SUCCESS - Nice opener with clear reason for calling.",
-                "FEEDBACK: RETRY - Consider asking a question to engage me more."
+                "FEEDBACK: RETRY - Consider asking a question to engage me more.",
+                "FEEDBACK: SUCCESS - You addressed my concern well.",
+                "FEEDBACK: RETRY - I need more empathy in your response."
             ];
             
             const feedback = feedbackOptions[Math.floor(Math.random() * feedbackOptions.length)];
@@ -1675,6 +1841,170 @@ function nextCall() {
 
 function hideUnlockNotice() {
     app.hide30MinuteUnlock();
+}
+
+// Debug functions for troubleshooting
+function debugModuleStates() {
+    if (!app) {
+        console.log('App not initialized yet');
+        return;
+    }
+    
+    console.log('🔍 DEBUG: Current Module States');
+    console.log('================================');
+    Object.entries(app.modules).forEach(([id, module]) => {
+        console.log(`${id.toUpperCase()}:`, {
+            unlocked: module.unlocked,
+            marathonCompleted: module.marathonCompleted,
+            legendAvailable: module.legendAvailable,
+            legendCompleted: module.legendCompleted
+        });
+    });
+    
+    console.log('\n🔍 DEBUG: Module Progress');
+    console.log('==========================');
+    console.log(app.moduleProgress);
+    
+    console.log('\n🔍 DEBUG: Current User');
+    console.log('=======================');
+    console.log(app.currentUser);
+}
+
+function forceUnlockModule(moduleId) {
+    if (!app) {
+        console.log('App not initialized yet');
+        return;
+    }
+    
+    if (app.modules[moduleId]) {
+        app.modules[moduleId].unlocked = true;
+        app.saveProgress();
+        app.updateModuleUI();
+        console.log(`✅ Force unlocked module: ${moduleId}`);
+    } else {
+        console.log(`❌ Module not found: ${moduleId}`);
+    }
+}
+
+function resetAllProgress() {
+    if (!app) {
+        console.log('App not initialized yet');
+        return;
+    }
+    
+    // Reset modules to initial state
+    Object.keys(app.modules).forEach(moduleId => {
+        app.modules[moduleId].unlocked = moduleId === 'warmup'; // Only warmup unlocked
+        app.modules[moduleId].marathonCompleted = false;
+        app.modules[moduleId].legendAvailable = false;
+        app.modules[moduleId].legendCompleted = false;
+    });
+    
+    // Clear progress
+    app.moduleProgress = {};
+    app.totalPracticeTime = 0;
+    
+    // Save and update
+    app.saveProgress();
+    app.updateModuleUI();
+    app.updateProgressStats();
+    
+    console.log('🔄 All progress reset');
+}
+
+function completeModule1() {
+    if (!app) {
+        console.log('App not initialized yet');
+        return;
+    }
+    
+    // Force complete warmup module
+    app.modules.warmup.marathonCompleted = true;
+    app.modules.warmup.legendAvailable = true;
+    app.modules.opener.unlocked = true;
+    
+    // Update progress
+    if (!app.moduleProgress.warmup) {
+        app.moduleProgress.warmup = { marathon: 0, practice: 0, legend: false };
+    }
+    app.moduleProgress.warmup.marathon = 10;
+    
+    app.saveProgress();
+    app.updateModuleUI();
+    app.updateProgressStats();
+    
+    console.log('✅ Forced completion of Module 1 (Warmup)');
+}
+
+function testRepeatLoop() {
+    if (!app) {
+        console.log('App not initialized yet');
+        return;
+    }
+    
+    // Simulate a repeat loop
+    app.startRepeatLoop('Hello, how are you today?', 'pronunciation');
+    console.log('🔄 Started test repeat loop');
+    console.log('💡 Say "Hello, how are you today?" to test the confidence checking');
+}
+
+function testAllModules() {
+    if (!app) {
+        console.log('App not initialized yet');
+        return;
+    }
+    
+    // Unlock and enable legend for all modules
+    Object.keys(app.modules).forEach(moduleId => {
+        app.modules[moduleId].unlocked = true;
+        app.modules[moduleId].marathonCompleted = true;
+        app.modules[moduleId].legendAvailable = true;
+        
+        if (!app.moduleProgress[moduleId]) {
+            app.moduleProgress[moduleId] = { marathon: 0, practice: 0, legend: false };
+        }
+        app.moduleProgress[moduleId].marathon = 10;
+    });
+    
+    app.saveProgress();
+    app.updateModuleUI();
+    app.updateProgressStats();
+    
+    console.log('✅ All modules unlocked and completed for testing');
+}
+
+function simulateHighConfidence() {
+    if (!app || !app.isInRepeatLoop) {
+        console.log('Not in repeat loop or app not ready');
+        return;
+    }
+    
+    // Simulate high confidence response
+    app.handleRepeatAttempt(app.repeatTarget, 0.95);
+    console.log('✅ Simulated high confidence repeat');
+}
+
+function getPromptPreview(moduleId) {
+    if (!app) {
+        console.log('App not initialized yet');
+        return;
+    }
+    
+    // Temporarily set module to see prompt
+    const originalModule = app.currentModule;
+    const originalCharacter = app.currentCharacter;
+    
+    app.currentModule = moduleId;
+    app.currentCharacter = app.selectRandomCharacter();
+    
+    const prompt = app.buildGPTPrompt('Hello, this is a test input');
+    console.log(`📋 ${moduleId.toUpperCase()} Module Prompt Preview:`);
+    console.log('=====================================');
+    console.log(prompt[0].content);
+    
+    // Restore original state
+    app.currentModule = originalModule;
+    app.currentCharacter = originalCharacter;
 }
 
 // Enhanced API functions for the updated server endpoints
