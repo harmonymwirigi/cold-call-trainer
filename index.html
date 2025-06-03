@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cold Call Roleplay Trainer</title>
+    <title>AI-Powered English Cold Calling Coach for Non-Native Speakers</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,35 +13,29 @@
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <h1>📞 Cold Call Roleplay Trainer</h1>
-            <p>Master your sales skills with AI-powered roleplay scenarios</p>
+            <h1>AI-Powered English Cold Calling Coach for Non-Native Speakers</h1>
+            <p>Practice real-world tech sales roleplays and sharpen your objection-handling, pitch, and closing skills in English.</p>
         </div>
 
         <!-- User Registration Form -->
         <div id="userForm" class="user-form">
             <h3>Get Started</h3>
             <div class="form-group">
-                <label for="userName">Your Name:</label>
-                <input type="text" id="userName" placeholder="Enter your full name" required>
+                <label for="userName">First Name:</label>
+                <input type="text" id="userName" placeholder="Enter your first name" required>
             </div>
             <div class="form-group">
                 <label for="userEmail">Email Address:</label>
                 <input type="email" id="userEmail" placeholder="Enter your email" required>
             </div>
             <div class="form-group">
-                <label for="jobTitle">Your Job Title:</label>
+                <label for="jobTitle">Prospect Job Title:</label>
                 <select id="jobTitle" required>
-                    <option value="">Select your role</option>
-                    <option value="sdr">Sales Development Representative</option>
-                    <option value="bdr">Business Development Representative</option>
-                    <option value="ae">Account Executive</option>
-                    <option value="sales_manager">Sales Manager</option>
-                    <option value="inside_sales">Inside Sales Rep</option>
-                    <option value="field_sales">Field Sales Rep</option>
-                    <option value="consultant">Sales Consultant</option>
-                    <option value="entrepreneur">Entrepreneur/Founder</option>
+                    <option value="">Select prospect job title</option>
+                    <!-- Will be populated by JavaScript -->
                 </select>
             </div>
+            <!-- Prospect Industry and Custom Behavior will be added by JavaScript -->
             <div class="form-group">
                 <label for="targetMarket">Target Market:</label>
                 <select id="targetMarket" required>
@@ -75,72 +69,70 @@
             </div>
 
             <div class="modules-grid">
-                <!-- Module 1: Warm-Up Challenge -->
-                <div class="module-card" id="module-warmup" data-module="warmup">
+                <!-- Module 1: Opener + Early Objections (Always Available) -->
+                <div class="module-card" id="module-opener" data-module="opener">
                     <div class="module-header">
                         <div class="module-number">1</div>
-                        <div class="module-status" id="status-warmup">
+                        <div class="module-status" id="status-opener">
                             <span class="lock-icon">🔓</span>
                         </div>
                     </div>
-                    <h3>🔥 Warm-Up Challenge</h3>
-                    <p>Quick practice prompts to get you ready. Random challenges to build confidence.</p>
-                    <div class="module-progress">
-                        <div class="progress-bar">
-                            <div class="progress-fill" id="progress-warmup"></div>
-                        </div>
-                        <span class="progress-text" id="progressText-warmup">0/10 Marathon</span>
-                    </div>
-                    <div class="module-actions">
-                        <button class="btn btn-practice" onclick="startModule('warmup', 'practice')">Practice</button>
-                        <button class="btn btn-marathon" onclick="startModule('warmup', 'marathon')">Marathon (10x)</button>
-                        <button class="btn btn-legend" id="legend-warmup" onclick="startModule('warmup', 'legend')" disabled>Legend Mode</button>
-                    </div>
-                </div>
-
-                <!-- Module 2: Opener + Early Objections -->
-                <div class="module-card locked" id="module-opener" data-module="opener">
-                    <div class="module-header">
-                        <div class="module-number">2</div>
-                        <div class="module-status" id="status-opener">
-                            <span class="lock-icon">🔒</span>
-                        </div>
-                    </div>
                     <h3>🚪 Opener + Early Objections</h3>
-                    <p>Practice your opening lines and handle early objections effectively.</p>
+                    <p>Practice delivering your opener and managing the objection. When you get confident you can do the marathon which is 10 and if you pass then you unlock the Pitch + Objections + Close roleplay for 24 hours.</p>
                     <div class="module-progress">
                         <div class="progress-bar">
                             <div class="progress-fill" id="progress-opener"></div>
                         </div>
-                        <span class="progress-text" id="progressText-opener">Complete Module 1 to unlock</span>
+                        <span class="progress-text" id="progressText-opener">0/10 Marathon</span>
                     </div>
                     <div class="module-actions">
                         <button class="btn btn-practice" onclick="startModule('opener', 'practice')">Practice</button>
                         <button class="btn btn-marathon" onclick="startModule('opener', 'marathon')">Marathon (10x)</button>
-                        <button class="btn btn-legend" onclick="startModule('opener', 'legend')">Legend Mode</button>
+                        <button class="btn btn-legend" id="legend-opener" onclick="startModule('opener', 'legend')" disabled>Legend Mode</button>
                     </div>
                 </div>
 
-                <!-- Module 3: Pitch + Post-Pitch Objections -->
+                <!-- Module 2: Pitch + Objections + Close -->
                 <div class="module-card locked" id="module-pitch" data-module="pitch">
                     <div class="module-header">
-                        <div class="module-number">3</div>
+                        <div class="module-number">2</div>
                         <div class="module-status" id="status-pitch">
                             <span class="lock-icon">🔒</span>
                         </div>
                     </div>
-                    <h3>💼 Pitch + Post-Pitch Objections</h3>
-                    <p>Perfect your pitch and master objection handling skills.</p>
+                    <h3>💼 Pitch + Objections + Close</h3>
+                    <p>Practice delivering your pitch, managing the objections and pushing for the meeting. When you feel confident go for the marathon which is 10 in a row and if you pass you unlock the warm up challenge for 24 hours.</p>
                     <div class="module-progress">
                         <div class="progress-bar">
                             <div class="progress-fill" id="progress-pitch"></div>
                         </div>
-                        <span class="progress-text" id="progressText-pitch">Complete Module 2 to unlock</span>
+                        <span class="progress-text" id="progressText-pitch">Pass the Marathon of Opener + Early Objections to unlock this roleplay</span>
                     </div>
                     <div class="module-actions">
-                        <button class="btn btn-practice" onclick="startModule('pitch', 'practice')">Practice</button>
-                        <button class="btn btn-marathon" onclick="startModule('pitch', 'marathon')">Marathon (10x)</button>
-                        <button class="btn btn-legend" onclick="startModule('pitch', 'legend')">Legend Mode</button>
+                        <button class="btn btn-practice" onclick="startModule('pitch', 'practice')" disabled>Practice</button>
+                        <button class="btn btn-marathon" onclick="startModule('pitch', 'marathon')" disabled>Marathon (10x)</button>
+                        <button class="btn btn-legend" onclick="startModule('pitch', 'legend')" disabled>Legend Mode</button>
+                    </div>
+                </div>
+
+                <!-- Module 3: Warm-up Challenge -->
+                <div class="module-card locked" id="module-warmup" data-module="warmup">
+                    <div class="module-header">
+                        <div class="module-number">3</div>
+                        <div class="module-status" id="status-warmup">
+                            <span class="lock-icon">🔒</span>
+                        </div>
+                    </div>
+                    <h3>🔥 Warm-up Challenge</h3>
+                    <p>The warm up challenge is perfect to do before cold calling because you will get a series of questions that you must know for any part of the cold call such as What is your pitch? Respond to early objections I have in a meeting. How do you ask for a meeting? etc. If you pass the challenge you will unlock the Full Cold Call Simulator for 24 hours.</p>
+                    <div class="module-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progress-warmup"></div>
+                        </div>
+                        <span class="progress-text" id="progressText-warmup">Pass the Marathon of Pitch + Objections + Close to unlock this roleplay</span>
+                    </div>
+                    <div class="module-actions">
+                        <button class="btn btn-practice" onclick="startModule('warmup', 'practice')" disabled>Practice</button>
                     </div>
                 </div>
 
@@ -153,17 +145,15 @@
                         </div>
                     </div>
                     <h3>📞 Full Cold Call Simulation</h3>
-                    <p>Complete end-to-end cold call experience with realistic interruptions.</p>
+                    <p>Think you are ready to do an entire cold call and book a meeting. This is a simulation from start to finish. Practice until you book a meeting. When you book a meeting you will unlock The Power Hour Challenge for 24 hours.</p>
                     <div class="module-progress">
                         <div class="progress-bar">
                             <div class="progress-fill" id="progress-fullcall"></div>
                         </div>
-                        <span class="progress-text" id="progressText-fullcall">Complete Module 3 to unlock</span>
+                        <span class="progress-text" id="progressText-fullcall">Pass the Marathon of Warm-up Challenge to unlock this roleplay</span>
                     </div>
                     <div class="module-actions">
-                        <button class="btn btn-practice" onclick="startModule('fullcall', 'practice')">Practice</button>
-                        <button class="btn btn-marathon" onclick="startModule('fullcall', 'marathon')">Marathon (10x)</button>
-                        <button class="btn btn-legend" onclick="startModule('fullcall', 'legend')">Legend Mode</button>
+                        <button class="btn btn-practice" onclick="startModule('fullcall', 'practice')" disabled>Practice</button>
                     </div>
                 </div>
 
@@ -176,17 +166,15 @@
                         </div>
                     </div>
                     <h3>⚡ Power Hour Challenge</h3>
-                    <p>Rapid-fire calls with time pressure. Build stamina and consistency.</p>
+                    <p>How many meetings can you book with 10 calls. The Power Hour Challenge is 10 calls in a row. Are you ready for the challenge?</p>
                     <div class="module-progress">
                         <div class="progress-bar">
                             <div class="progress-fill" id="progress-powerhour"></div>
                         </div>
-                        <span class="progress-text" id="progressText-powerhour">Complete Module 4 to unlock</span>
+                        <span class="progress-text" id="progressText-powerhour">Pass the Marathon of Full Cold Call Simulation to unlock this roleplay</span>
                     </div>
                     <div class="module-actions">
-                        <button class="btn btn-practice" onclick="startModule('powerhour', 'practice')">Practice</button>
-                        <button class="btn btn-marathon" onclick="startModule('powerhour', 'marathon')">Marathon (10x)</button>
-                        <button class="btn btn-legend" onclick="startModule('powerhour', 'legend')">Legend Mode</button>
+                        <button class="btn btn-practice" onclick="startModule('powerhour', 'practice')" disabled>Practice</button>
                     </div>
                 </div>
             </div>
@@ -273,28 +261,14 @@
                     <button class="call-btn decline-btn" onclick="endCall()">
                         <span class="icon">📞</span>
                     </button>
-                    <button class="call-btn accept-btn" id="acceptBtn" onclick="answerCall()" style="display: none;">
-                        <span class="icon">📞</span>
-                    </button>
                 </div>
 
                 <!-- Module Info -->
                 <div class="module-info" id="moduleInfo">
                     <div class="module-type" id="moduleType">Practice Mode</div>
-                    <div class="module-description" id="moduleDescription">Quick warm-up exercise</div>
+                    <div class="module-description" id="moduleDescription">Quick practice exercise</div>
                 </div>
             </div>
-
-            <!-- Audio Elements -->
-            <audio id="dialTone" preload="auto">
-                <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+TyvmEeCDWLz/LKdSEIKoTO8t2QRAD2" type="audio/wav">
-            </audio>
-            <audio id="ringTone" preload="auto" loop>
-                <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+TyvmEeCDWLz/LKdSEIKoTO8t2QRAD2" type="audio/wav">
-            </audio>
-            <audio id="hangupTone" preload="auto">
-                <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+TyvmEeCDWLz/LKdSEIKoTO8t2QRAD2" type="audio/wav">
-            </audio>
         </div>
 
         <!-- Feedback Modal -->
@@ -315,7 +289,7 @@
         </div>
     </div>
 
-    <!-- Scripts -->
-    <script src="app.js"></script>
+    <!-- Module Scripts (ES6 Modules) -->
+    <script type="module" src="app.js"></script>
 </body>
 </html>

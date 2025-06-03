@@ -1,0 +1,536 @@
+/**
+ * UI Manager - Handles all user interface updates and interactions
+ */
+
+export class UIManager {
+    constructor(app) {
+        this.app = app;
+    }
+    
+    init() {
+        this.setupUIElements();
+        this.createProspectJobTitleDropdown();
+        this.createProspectIndustryDropdown();
+        this.addCustomBehaviorField();
+        console.log('🎨 UI Manager initialized');
+    }
+    
+    setupUIElements() {
+        // Update header text
+        this.updateHeaderText();
+        
+        // Update form labels
+        this.updateFormLabels();
+    }
+    
+    updateHeaderText() {
+        const headerTitle = document.querySelector('.header h1');
+        const headerSubtitle = document.querySelector('.header p');
+        
+        if (headerTitle) {
+            headerTitle.textContent = 'AI-Powered English Cold Calling Coach for Non-Native Speakers';
+        }
+        
+        if (headerSubtitle) {
+            headerSubtitle.textContent = 'Practice real-world tech sales roleplays and sharpen your objection-handling, pitch, and closing skills in English.';
+        }
+    }
+    
+    updateFormLabels() {
+        const nameLabel = document.querySelector('label[for="userName"]');
+        if (nameLabel) {
+            nameLabel.textContent = 'First Name:';
+        }
+        
+        const nameInput = document.getElementById('userName');
+        if (nameInput) {
+            nameInput.placeholder = 'Enter your first name';
+        }
+    }
+    
+    createProspectJobTitleDropdown() {
+        const jobTitleContainer = document.querySelector('.form-group:has(#jobTitle)');
+        if (!jobTitleContainer) return;
+        
+        const jobTitles = [
+            'Brand/Communications Manager',
+            'CEO (Chief Executive Officer)',
+            'CFO (Chief Financial Officer)',
+            'CIO (Chief Information Officer)',
+            'COO (Chief Operating Officer)',
+            'Content Marketing Manager',
+            'CTO (Chief Technology Officer)',
+            'Demand Generation Manager',
+            'Digital Marketing Manager',
+            'Engineering Manager',
+            'Finance Director',
+            'Founder / Owner / Managing Director (MD)',
+            'Head of Product',
+            'Purchasing Manager',
+            'R&D/Product Development Manager',
+            'Sales Manager',
+            'Sales Operations Manager',
+            'Social Media Manager',
+            'UX/UI Design Lead',
+            'VP of Finance',
+            'VP of HR',
+            'VP of IT/Engineering',
+            'VP of Marketing',
+            'VP of Sales'
+        ];
+        
+        // Update label
+        const label = jobTitleContainer.querySelector('label');
+        if (label) {
+            label.textContent = 'Prospect Job Title:';
+        }
+        
+        // Update select element
+        const select = document.getElementById('jobTitle');
+        if (select) {
+            select.id = 'prospectJobTitle';
+            select.innerHTML = '<option value="">Select prospect job title</option>';
+            
+            jobTitles.forEach(title => {
+                const option = document.createElement('option');
+                option.value = title.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                option.textContent = title;
+                select.appendChild(option);
+            });
+            
+            // Add "Other" option
+            const otherOption = document.createElement('option');
+            otherOption.value = 'other';
+            otherOption.textContent = 'Other (Please specify)';
+            select.appendChild(otherOption);
+            
+            // Add event listener for "Other" selection
+            select.addEventListener('change', (e) => {
+                this.handleJobTitleChange(e.target.value);
+            });
+        }
+    }
+    
+    createProspectIndustryDropdown() {
+        const jobTitleContainer = document.querySelector('.form-group:has(#prospectJobTitle)');
+        if (!jobTitleContainer) return;
+        
+        const industries = [
+            'Education & e-Learning',
+            'Energy & Utilities',
+            'Finance & Banking',
+            'Government & Public Sector',
+            'Healthcare & Life Sciences',
+            'Hospitality & Travel',
+            'Information Technology & Services',
+            'Logistics, Transportation & Supply Chain',
+            'Manufacturing & Industrial',
+            'Media & Entertainment',
+            'Non-Profit & Associations',
+            'Professional Services (Legal, Accounting, Consulting)',
+            'Real Estate & Property Management',
+            'Retail & e-Commerce',
+            'Telecommunications'
+        ];
+        
+        // Create industry dropdown
+        const industryGroup = document.createElement('div');
+        industryGroup.className = 'form-group';
+        
+        const industryLabel = document.createElement('label');
+        industryLabel.setAttribute('for', 'prospectIndustry');
+        industryLabel.textContent = 'Prospect Industry:';
+        
+        const industrySelect = document.createElement('select');
+        industrySelect.id = 'prospectIndustry';
+        industrySelect.required = true;
+        
+        // Add default option
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = 'Select prospect industry';
+        industrySelect.appendChild(defaultOption);
+        
+        // Add industry options
+        industries.forEach(industry => {
+            const option = document.createElement('option');
+            option.value = industry.toLowerCase().replace(/[^a-z0-9]/g, '_');
+            option.textContent = industry;
+            industrySelect.appendChild(option);
+        });
+        
+        // Add "Other" option
+        const otherOption = document.createElement('option');
+        otherOption.value = 'other';
+        otherOption.textContent = 'Other (Please specify)';
+        industrySelect.appendChild(otherOption);
+        
+        // Add event listener for "Other" selection
+        industrySelect.addEventListener('change', (e) => {
+            this.handleIndustryChange(e.target.value);
+        });
+        
+        industryGroup.appendChild(industryLabel);
+        industryGroup.appendChild(industrySelect);
+        
+        // Insert after job title group
+        jobTitleContainer.insertAdjacentElement('afterend', industryGroup);
+    }
+    
+    addCustomBehaviorField() {
+        const industryContainer = document.querySelector('.form-group:has(#prospectIndustry)');
+        if (!industryContainer) return;
+        
+        const customGroup = document.createElement('div');
+        customGroup.className = 'form-group';
+        
+        const customLabel = document.createElement('label');
+        customLabel.setAttribute('for', 'customBehavior');
+        customLabel.textContent = 'Additional AI Behavior (Optional):';
+        
+        const customTextarea = document.createElement('textarea');
+        customTextarea.id = 'customBehavior';
+        customTextarea.placeholder = 'e.g., "Act more skeptical", "Be very busy", "Show interest in cost savings"...';
+        customTextarea.rows = 3;
+        customTextarea.style.cssText = `
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-family: inherit;
+            background: #f8f9fa;
+            resize: vertical;
+            min-height: 80px;
+        `;
+        
+        customTextarea.addEventListener('focus', () => {
+            customTextarea.style.borderColor = '#667eea';
+            customTextarea.style.background = 'white';
+            customTextarea.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
+        });
+        
+        customTextarea.addEventListener('blur', () => {
+            customTextarea.style.borderColor = '#e2e8f0';
+            customTextarea.style.background = '#f8f9fa';
+            customTextarea.style.boxShadow = 'none';
+        });
+        
+        customGroup.appendChild(customLabel);
+        customGroup.appendChild(customTextarea);
+        
+        // Insert after industry group
+        industryContainer.insertAdjacentElement('afterend', customGroup);
+    }
+    
+    handleJobTitleChange(value) {
+        this.removeCustomInput('customJobTitle');
+        
+        if (value === 'other') {
+            this.addCustomInput('prospectJobTitle', 'customJobTitle', 'Please specify the job title:');
+        }
+    }
+    
+    handleIndustryChange(value) {
+        this.removeCustomInput('customIndustry');
+        
+        if (value === 'other') {
+            this.addCustomInput('prospectIndustry', 'customIndustry', 'Please specify the industry:');
+        }
+    }
+    
+    addCustomInput(afterElementId, inputId, labelText) {
+        const afterElement = document.getElementById(afterElementId);
+        if (!afterElement) return;
+        
+        const customInput = document.createElement('input');
+        customInput.type = 'text';
+        customInput.id = inputId;
+        customInput.placeholder = 'Enter custom value';
+        customInput.required = true;
+        customInput.style.cssText = `
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 0.9rem;
+        `;
+        
+        const label = document.createElement('div');
+        label.textContent = labelText;
+        label.style.cssText = `
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: #667eea;
+            font-weight: 600;
+        `;
+        
+        afterElement.parentNode.appendChild(label);
+        afterElement.parentNode.appendChild(customInput);
+    }
+    
+    removeCustomInput(inputId) {
+        const existingInput = document.getElementById(inputId);
+        if (existingInput) {
+            const label = existingInput.previousElementSibling;
+            if (label) label.remove();
+            existingInput.remove();
+        }
+    }
+    
+    showModuleDashboard() {
+        document.getElementById('userForm').style.display = 'none';
+        document.getElementById('phoneInterface').style.display = 'none';
+        document.getElementById('moduleDashboard').style.display = 'block';
+        
+        this.updateModuleUI();
+        this.updateProgressStats();
+    }
+    
+    updateModuleUI() {
+        console.log('🔄 Updating module UI...');
+        
+        const modules = this.app.moduleManager.getAllModules();
+        
+        modules.forEach(module => {
+            const card = document.getElementById(`module-${module.id}`);
+            if (!card) {
+                console.warn(`⚠️ Module card not found: module-${module.id}`);
+                return;
+            }
+            
+            this.updateModuleCard(card, module);
+        });
+        
+        console.log('✅ Module UI update complete');
+    }
+    
+    updateModuleCard(card, module) {
+        const statusIcon = card.querySelector(`#status-${module.id} .lock-icon`);
+        const progressFill = card.querySelector(`#progress-${module.id}`);
+        const progressText = card.querySelector(`#progressText-${module.id}`);
+        const practiceBtn = card.querySelector('.btn-practice');
+        const marathonBtn = card.querySelector('.btn-marathon');
+        const legendBtn = card.querySelector('.btn-legend');
+        
+        // Update lock status and access
+        const hasAccess = this.app.userManager.hasAccessToModule(module.id);
+        const isUnlocked = module.unlocked || hasAccess;
+        
+        if (isUnlocked) {
+            card.classList.remove('locked');
+            if (statusIcon) statusIcon.textContent = '🔓';
+            
+            // Enable practice button
+            if (practiceBtn) practiceBtn.disabled = false;
+            
+            // Handle marathon button
+            if (marathonBtn) {
+                marathonBtn.disabled = !module.hasMarathon;
+                marathonBtn.style.display = module.hasMarathon ? 'inline-block' : 'none';
+            }
+            
+            // Handle legend button
+            if (legendBtn) {
+                if (module.hasLegend) {
+                    legendBtn.style.display = 'inline-block';
+                    if (module.legendAvailable && !module.legendCompleted) {
+                        legendBtn.disabled = false;
+                        legendBtn.textContent = 'Legend Mode';
+                    } else if (module.legendCompleted) {
+                        legendBtn.disabled = true;
+                        legendBtn.textContent = 'Legend Complete ✓';
+                    } else {
+                        legendBtn.disabled = true;
+                        legendBtn.textContent = 'Legend Mode';
+                    }
+                } else {
+                    legendBtn.style.display = 'none';
+                }
+            }
+        } else {
+            card.classList.add('locked');
+            if (statusIcon) statusIcon.textContent = '🔒';
+            
+            // Disable all buttons
+            if (practiceBtn) practiceBtn.disabled = true;
+            if (marathonBtn) marathonBtn.disabled = true;
+            if (legendBtn) legendBtn.disabled = true;
+        }
+        
+        // Update progress display
+        this.updateModuleProgress(module, progressFill, progressText, isUnlocked);
+        
+        // Update descriptions
+        this.updateModuleDescription(card, module);
+    }
+    
+    updateModuleProgress(module, progressFill, progressText, isUnlocked) {
+        const progress = this.app.moduleManager.getModuleProgress(module.id);
+        
+        if (isUnlocked) {
+            let progressPercent = 0;
+            let progressLabel = '';
+            
+            if (module.id === 'warmup') {
+                // Warmup shows question progress
+                const score = progress.warmupScore || 0;
+                progressPercent = (score / module.totalQuestions) * 100;
+                progressLabel = `${score}/${module.totalQuestions} Questions`;
+                if (score >= module.passingScore) {
+                    progressLabel += ' ✓';
+                }
+            } else if (module.hasMarathon) {
+                // Marathon modules show marathon progress
+                const marathonProgress = Math.min(progress.marathon, 10);
+                progressPercent = (marathonProgress / 10) * 100;
+                progressLabel = `${marathonProgress}/10 Marathon`;
+                if (module.marathonCompleted) {
+                    progressLabel += ' ✓';
+                }
+            } else {
+                // Other modules show completion status
+                progressPercent = progress.practice > 0 ? 100 : 0;
+                progressLabel = progress.practice > 0 ? 'Completed ✓' : 'Not Started';
+            }
+            
+            if (progressFill) {
+                progressFill.style.width = `${progressPercent}%`;
+            }
+            
+            if (progressText) {
+                progressText.textContent = progressLabel;
+            }
+        } else {
+            // Locked state
+            if (progressFill) {
+                progressFill.style.width = '0%';
+            }
+            
+            if (progressText) {
+                const prevModule = this.app.moduleManager.getPreviousModule(module.id);
+                progressText.textContent = prevModule 
+                    ? `Pass the Marathon of ${prevModule.name} to unlock this roleplay`
+                    : 'Locked';
+            }
+        }
+    }
+    
+    updateModuleDescription(card, module) {
+        const descriptionEl = card.querySelector('p');
+        if (descriptionEl && module.detailedDescription) {
+            descriptionEl.textContent = module.detailedDescription;
+        }
+    }
+    
+    updateProgressStats() {
+        const practiceMinutes = Math.floor(this.app.totalPracticeTime / (1000 * 60));
+        const unlockedCount = this.app.moduleManager.getUnlockedModules().length;
+        
+        const practiceTimeEl = document.getElementById('totalPracticeTime');
+        const unlockedModulesEl = document.getElementById('unlockedModules');
+        
+        if (practiceTimeEl) practiceTimeEl.textContent = `${practiceMinutes}m`;
+        if (unlockedModulesEl) unlockedModulesEl.textContent = `${unlockedCount}/5`;
+        
+        // Check for 30-minute unlock
+        if (practiceMinutes >= 30 && !this.allModulesUnlocked()) {
+            this.show30MinuteUnlock();
+        }
+    }
+    
+    allModulesUnlocked() {
+        return this.app.moduleManager.getUnlockedModules().length === 5;
+    }
+    
+    show30MinuteUnlock() {
+        const unlockNotice = document.getElementById('unlockNotice');
+        if (unlockNotice) {
+            unlockNotice.style.display = 'block';
+        }
+    }
+    
+    hideUnlockNotice() {
+        const unlockNotice = document.getElementById('unlockNotice');
+        if (unlockNotice) {
+            unlockNotice.style.display = 'none';
+        }
+    }
+    
+    // Notification system
+    showSuccess(message) {
+        this.showNotification(message, 'success');
+    }
+    
+    showError(message) {
+        this.showNotification(message, 'error');
+    }
+    
+    showWarning(message) {
+        this.showNotification(message, 'warning');
+    }
+    
+    showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            z-index: 1000;
+            max-width: 300px;
+            animation: slideIn 0.3s ease;
+        `;
+        
+        switch (type) {
+            case 'success':
+                notification.style.background = 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)';
+                break;
+            case 'error':
+                notification.style.background = 'linear-gradient(135deg, #f44336 0%, #d32f2f 100%)';
+                break;
+            case 'warning':
+                notification.style.background = 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)';
+                break;
+            default:
+                notification.style.background = 'linear-gradient(135deg, #2196F3 0%, #1976D2 100%)';
+        }
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 4000);
+    }
+    
+    // Modal management
+    showFeedbackModal(title, content) {
+        const modal = document.getElementById('feedbackModal');
+        const titleEl = document.getElementById('feedbackTitle');
+        const contentEl = document.getElementById('feedbackContent');
+        
+        if (titleEl) titleEl.textContent = title;
+        if (contentEl) contentEl.innerHTML = content;
+        if (modal) modal.style.display = 'flex';
+    }
+    
+    closeFeedbackModal() {
+        const modal = document.getElementById('feedbackModal');
+        if (modal) modal.style.display = 'none';
+        this.showModuleDashboard();
+    }
+    
+    // Utility methods
+    updateUI() {
+        const user = this.app.getCurrentUser();
+        if (user) {
+            this.showModuleDashboard();
+        }
+    }
+}
