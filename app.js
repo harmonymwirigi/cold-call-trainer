@@ -3,14 +3,14 @@
  * Main application orchestrator and state management
  */
 
-import { UserManager } from './usermanager.js';
-import { ModuleManager } from './module-manager.js';
-import { CallManager } from './call-manager.js';
-import { SpeechManager } from './speech-manager.js';
-import { CharacterManager } from './character-manager.js';
-import { UIManager } from './ui-manager.js';
-import { ProgressManager } from './progress-manager.js';
-import { AudioManager } from './audiomanager.js';
+import { UserManager } from './modules/user-manager.js';
+import { ModuleManager } from './modules/module-manager.js';
+import { CallManager } from './modules/call-manager.js';
+import { SpeechManager } from './modules/speech-manager.js';
+import { CharacterManager } from './modules/character-manager.js';
+import { UIManager } from './modules/ui-manager.js';
+import { ProgressManager } from './modules/progress-manager.js';
+import { AudioManager } from './modules/audio-manager.js';
 
 // Global Application State
 class ColdCallTrainer {
