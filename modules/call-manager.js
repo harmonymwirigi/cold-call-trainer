@@ -60,6 +60,23 @@ export class CallManager {
         document.getElementById('voiceStatus').textContent = 'Connecting...';
         
         this.app.uiManager.resetVoiceVisualizer();
+        
+        // Fix hangup button positioning (G1)
+        this.fixHangupButtonPosition();
+    }
+    
+    fixHangupButtonPosition() {
+        const hangupBtn = document.querySelector('.decline-btn');
+        if (hangupBtn) {
+            // Ensure hangup button stays within phone boundaries
+            hangupBtn.style.position = 'relative';
+            hangupBtn.style.zIndex = '10';
+            hangupBtn.style.margin = '0 auto';
+            hangupBtn.style.maxWidth = '80px';
+            hangupBtn.style.maxHeight = '80px';
+            
+            console.log('📱 Fixed hangup button positioning');
+        }
     }
     
     startCallSequence() {

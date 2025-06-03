@@ -88,7 +88,6 @@
                     <div class="module-actions">
                         <button class="btn btn-practice" onclick="startModule('opener', 'practice')">Practice</button>
                         <button class="btn btn-marathon" onclick="startModule('opener', 'marathon')">Marathon (10x)</button>
-                        <button class="btn btn-legend" id="legend-opener" onclick="startModule('opener', 'legend')" disabled>Legend Mode</button>
                     </div>
                 </div>
 
@@ -111,7 +110,6 @@
                     <div class="module-actions">
                         <button class="btn btn-practice" onclick="startModule('pitch', 'practice')" disabled>Practice</button>
                         <button class="btn btn-marathon" onclick="startModule('pitch', 'marathon')" disabled>Marathon (10x)</button>
-                        <button class="btn btn-legend" onclick="startModule('pitch', 'legend')" disabled>Legend Mode</button>
                     </div>
                 </div>
 
@@ -258,7 +256,7 @@
 
                 <!-- Main Call Actions -->
                 <div class="call-actions">
-                    <button class="call-btn decline-btn" onclick="endCall()">
+                    <button class="call-btn decline-btn" onclick="endCall()" style="position: relative; z-index: 10; margin: 0 auto; max-width: 80px; max-height: 80px;">
                         <span class="icon">📞</span>
                     </button>
                 </div>

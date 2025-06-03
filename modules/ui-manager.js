@@ -12,6 +12,7 @@ export class UIManager {
         this.createProspectJobTitleDropdown();
         this.createProspectIndustryDropdown();
         this.addCustomBehaviorField();
+        this.addAnimationStyles();
         console.log('🎨 UI Manager initialized');
     }
     
@@ -34,6 +35,9 @@ export class UIManager {
         if (headerSubtitle) {
             headerSubtitle.textContent = 'Practice real-world tech sales roleplays and sharpen your objection-handling, pitch, and closing skills in English.';
         }
+        
+        // Also update the document title
+        document.title = 'AI-Powered English Cold Calling Coach for Non-Native Speakers';
     }
     
     updateFormLabels() {
@@ -325,29 +329,23 @@ export class UIManager {
             // Enable practice button
             if (practiceBtn) practiceBtn.disabled = false;
             
-            // Handle marathon button
+            // Handle marathon button - only show for modules that have marathon
             if (marathonBtn) {
-                marathonBtn.disabled = !module.hasMarathon;
-                marathonBtn.style.display = module.hasMarathon ? 'inline-block' : 'none';
+                if (module.hasMarathon) {
+                    marathonBtn.disabled = false;
+                    marathonBtn.style.display = 'inline-block';
+                    // Fix marathon button text centering
+                    marathonBtn.style.textAlign = 'center';
+                    marathonBtn.style.whiteSpace = 'nowrap';
+                    marathonBtn.style.overflow = 'hidden';
+                } else {
+                    marathonBtn.style.display = 'none';
+                }
             }
             
-            // Handle legend button
+            // Handle legend button - REMOVE from UI (F1)
             if (legendBtn) {
-                if (module.hasLegend) {
-                    legendBtn.style.display = 'inline-block';
-                    if (module.legendAvailable && !module.legendCompleted) {
-                        legendBtn.disabled = false;
-                        legendBtn.textContent = 'Legend Mode';
-                    } else if (module.legendCompleted) {
-                        legendBtn.disabled = true;
-                        legendBtn.textContent = 'Legend Complete ✓';
-                    } else {
-                        legendBtn.disabled = true;
-                        legendBtn.textContent = 'Legend Mode';
-                    }
-                } else {
-                    legendBtn.style.display = 'none';
-                }
+                legendBtn.style.display = 'none';
             }
         } else {
             card.classList.add('locked');
@@ -526,11 +524,148 @@ export class UIManager {
         this.showModuleDashboard();
     }
     
-    // Utility methods
-    updateUI() {
-        const user = this.app.getCurrentUser();
-        if (user) {
-            this.showModuleDashboard();
+    // Add missing UI helper methods
+    activateVoiceVisualizer() {
+        const visualizer = document.getElementById('voiceVisualizer');
+        if (visualizer) {
+            visualizer.classList.add('active');
+        }
+    }
+    
+    deactivateVoiceVisualizer() {
+        const visualizer = document.getElementById('voiceVisualizer');
+        if (visualizer) {
+            visualizer.classList.remove('active');
+        }
+    }
+    
+    resetVoiceVisualizer() {
+        this.deactivateVoiceVisualizer();
+    }
+    
+    showQuickSuccess() {
+        const feedback = document.createElement('div');
+        feedback.className = 'quick-success';
+        feedback.textContent = '✓ Great response!';
+        feedback.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(76, 175, 80, 0.9);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            font-weight: 600;
+            z-index: 1000;
+            animation: fadeInOut 2s ease;
+        `;
+        
+        document.body.appendChild(feedback);
+        
+        setTimeout(() => {
+            feedback.remove();
+        }, 2000);
+    }
+    
+    showCallFeedback(feedback, success) {
+        const feedbackEl = document.createElement('div');
+        feedbackEl.className = `call-feedback ${success ? 'success' : 'error'}`;
+        feedbackEl.textContent = feedback;
+        feedbackEl.style.cssText = `
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 15px;
+            border-radius: 8px;
+            color: white;
+            font-size: 0.9rem;
+            z-index: 100;
+            max-width: 280px;
+            text-align: center;
+            background: ${success ? 'rgba(76, 175, 80, 0.9)' : 'rgba(244, 67, 54, 0.9)'};
+        `;
+        
+        const phoneInterface = document.getElementById('phoneInterface');
+        if (phoneInterface) {
+            phoneInterface.appendChild(feedbackEl);
+            
+            setTimeout(() => {
+                feedbackEl.remove();
+            }, 3000);
+        }
+    }
+    
+    // Additional CSS for animations and Phase 1 fixes
+    addAnimationStyles() {
+        if (!document.getElementById('uiAnimationStyles')) {
+            const style = document.createElement('style');
+            style.id = 'uiAnimationStyles';
+            style.textContent = `
+                @keyframes fadeInOut {
+                    0%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+                    20%, 80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+                }
+                
+                .quick-success {
+                    pointer-events: none;
+                }
+                
+                .call-feedback {
+                    animation: slideUp 0.3s ease;
+                }
+                
+                @keyframes slideUp {
+                    from { transform: translateX(-50%) translateY(20px); opacity: 0; }
+                    to { transform: translateX(-50%) translateY(0); opacity: 1; }
+                }
+                
+                /* Fix marathon button text centering (F2) */
+                .btn-marathon {
+                    text-align: center !important;
+                    white-space: nowrap !important;
+                    overflow: hidden !important;
+                    text-overflow: ellipsis !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    padding: 8px 12px !important;
+                }
+                
+                /* Phone interface improvements (G1) */
+                .call-btn.decline-btn {
+                    position: relative !important;
+                    z-index: 10 !important;
+                    margin: 0 auto !important;
+                    max-width: 80px !important;
+                    max-height: 80px !important;
+                }
+                
+                .call-actions {
+                    display: flex !important;
+                    justify-content: center !important;
+                    align-items: center !important;
+                    padding: 0 20px !important;
+                }
+                
+                /* Better locked state indicators (G1) */
+                .module-card.locked {
+                    opacity: 0.6;
+                    background: #f8f9fa;
+                    border: 2px dashed #dee2e6;
+                }
+                
+                .module-card.locked .progress-text {
+                    font-weight: 600;
+                    color: #6c757d;
+                    background: rgba(108, 117, 125, 0.1);
+                    padding: 5px 10px;
+                    border-radius: 5px;
+                    font-size: 0.85rem;
+                }
+            `;
+            document.head.appendChild(style);
         }
     }
 }

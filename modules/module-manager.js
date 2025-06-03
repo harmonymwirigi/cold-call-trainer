@@ -53,8 +53,8 @@ export class ModuleManager {
                 marathonCompleted: false,
                 legendAvailable: false,
                 legendCompleted: false,
-                hasMarathon: false,
-                hasLegend: false,
+                hasMarathon: false, // No marathon mode for warmup
+                hasLegend: false, // No legend mode for warmup
                 totalQuestions: 25,
                 passingScore: 18
             },
@@ -68,8 +68,8 @@ export class ModuleManager {
                 marathonCompleted: false,
                 legendAvailable: false,
                 legendCompleted: false,
-                hasMarathon: false,
-                hasLegend: false
+                hasMarathon: false, // No marathon mode for fullcall
+                hasLegend: false // No legend mode for fullcall
             },
             powerhour: {
                 id: 'powerhour',
@@ -81,8 +81,8 @@ export class ModuleManager {
                 marathonCompleted: false,
                 legendAvailable: false,
                 legendCompleted: false,
-                hasMarathon: false,
-                hasLegend: false
+                hasMarathon: false, // No marathon mode for powerhour
+                hasLegend: false // No legend mode for powerhour
             }
         };
     }
