@@ -1,5 +1,6 @@
 /**
  * User Manager - Handles user registration, authentication, and access levels
+ * Phase 2 Update: Added email verification system
  */
 
 export class UserManager {
@@ -65,33 +66,40 @@ export class UserManager {
             targetMarket,
             customBehavior,
             startTime: new Date().toISOString(),
-            accessLevel: this.determineAccessLevel(email), // Default logic
+            accessLevel: this.determineAccessLevel(email),
             emailVerified: false
         };
         
-        // For now, skip email verification in demo mode
-        // In production, this would trigger email verification
-        this.completeRegistration(user);
+        // Start email verification process
+        this.sendEmailVerification(email, firstName, user);
     }
     
-    async sendEmailVerification(email, firstName) {
-        // This would integrate with an email service
+    async sendEmailVerification(email, firstName, pendingUser) {
+        // Generate verification code
         const verificationCode = Math.floor(100000 + Math.random() * 900000);
         
         try {
-            // Store verification code temporarily
+            // Store verification code and user data temporarily
             sessionStorage.setItem('verificationCode', verificationCode.toString());
-            sessionStorage.setItem('pendingUser', JSON.stringify({ email, firstName }));
+            sessionStorage.setItem('pendingUser', JSON.stringify(pendingUser));
+            sessionStorage.setItem('verificationEmail', email);
             
             // In production, send actual email here
             console.log(`📧 Verification code for ${email}: ${verificationCode}`);
             
+            // For demo purposes, show the code in console and alert
+            alert(`Demo Mode: Your verification code is ${verificationCode}\n\nIn production, this would be sent to your email.`);
+            
             // Show verification form
             this.showVerificationForm();
+            
+            // Store lead data immediately (before verification)
+            this.captureLeadData(pendingUser);
             
             return true;
         } catch (error) {
             console.error('Failed to send verification email:', error);
+            this.app.uiManager.showError('Failed to send verification email. Please try again.');
             return false;
         }
     }
@@ -100,26 +108,59 @@ export class UserManager {
         // Hide registration form
         document.getElementById('userForm').style.display = 'none';
         
-        // Show verification form (would need to be added to HTML)
+        // Remove existing verification form if present
+        const existingForm = document.getElementById('verificationForm');
+        if (existingForm) {
+            existingForm.remove();
+        }
+        
+        // Create verification form
         const verificationHTML = `
             <div id="verificationForm" class="user-form">
-                <h3>Verify Your Email</h3>
-                <p>We've sent a 6-digit code to your email address.</p>
+                <h3>✉️ Verify Your Email</h3>
+                <p>We've sent a 6-digit verification code to your email address.</p>
                 <div class="form-group">
                     <label for="verificationCode">Verification Code:</label>
-                    <input type="text" id="verificationCode" placeholder="Enter 6-digit code" maxlength="6" required>
+                    <input type="text" id="verificationCode" placeholder="Enter 6-digit code" maxlength="6" required 
+                           style="text-align: center; font-size: 1.2rem; letter-spacing: 0.2rem;">
                 </div>
                 <div class="form-actions">
-                    <button class="btn btn-secondary" onclick="showRegistrationForm()">Back</button>
-                    <button class="btn btn-primary" onclick="verifyEmailCode()">Verify</button>
+                    <button class="btn btn-secondary" onclick="showRegistrationForm()">← Back</button>
+                    <button class="btn btn-primary" onclick="verifyEmailCode()">Verify & Continue</button>
                 </div>
-                <p style="text-align: center; margin-top: 15px;">
-                    <a href="#" onclick="resendVerificationCode()">Resend Code</a>
+                <p style="text-align: center; margin-top: 15px; color: #6c757d;">
+                    Didn't receive the code? <a href="#" onclick="resendVerificationCode()" style="color: #667eea;">Resend Code</a>
                 </p>
             </div>
         `;
         
+        // Insert after the original user form
         document.getElementById('userForm').insertAdjacentHTML('afterend', verificationHTML);
+        
+        // Focus on verification input
+        setTimeout(() => {
+            document.getElementById('verificationCode').focus();
+        }, 100);
+        
+        // Auto-submit when 6 digits entered
+        document.getElementById('verificationCode').addEventListener('input', (e) => {
+            if (e.target.value.length === 6) {
+                setTimeout(() => {
+                    this.verifyEmailCode();
+                }, 500);
+            }
+        });
+    }
+    
+    showRegistrationForm() {
+        // Show registration form
+        document.getElementById('userForm').style.display = 'block';
+        
+        // Hide verification form
+        const verificationForm = document.getElementById('verificationForm');
+        if (verificationForm) {
+            verificationForm.style.display = 'none';
+        }
     }
     
     verifyEmailCode() {
@@ -127,21 +168,66 @@ export class UserManager {
         const storedCode = sessionStorage.getItem('verificationCode');
         const pendingUser = JSON.parse(sessionStorage.getItem('pendingUser') || '{}');
         
+        if (!enteredCode) {
+            this.app.uiManager.showError('Please enter the verification code.');
+            return;
+        }
+        
         if (enteredCode === storedCode) {
             // Clean up verification data
             sessionStorage.removeItem('verificationCode');
             sessionStorage.removeItem('pendingUser');
+            sessionStorage.removeItem('verificationEmail');
             
             // Complete registration
             const user = {
                 ...pendingUser,
-                emailVerified: true,
-                accessLevel: this.determineAccessLevel(pendingUser.email)
+                emailVerified: true
             };
             
             this.completeRegistration(user);
+            
+            // Remove verification form
+            const verificationForm = document.getElementById('verificationForm');
+            if (verificationForm) {
+                verificationForm.remove();
+            }
+            
         } else {
             this.app.uiManager.showError('Invalid verification code. Please try again.');
+            
+            // Clear the input and focus
+            const codeInput = document.getElementById('verificationCode');
+            codeInput.value = '';
+            codeInput.focus();
+        }
+    }
+    
+    resendVerificationCode() {
+        const email = sessionStorage.getItem('verificationEmail');
+        const pendingUser = JSON.parse(sessionStorage.getItem('pendingUser') || '{}');
+        
+        if (!email || !pendingUser.firstName) {
+            this.app.uiManager.showError('Session expired. Please start registration again.');
+            this.showRegistrationForm();
+            return;
+        }
+        
+        // Generate new code
+        const verificationCode = Math.floor(100000 + Math.random() * 900000);
+        sessionStorage.setItem('verificationCode', verificationCode.toString());
+        
+        // In production, send actual email here
+        console.log(`📧 New verification code for ${email}: ${verificationCode}`);
+        alert(`Demo Mode: Your new verification code is ${verificationCode}`);
+        
+        this.app.uiManager.showSuccess('New verification code sent!');
+        
+        // Clear and focus input
+        const codeInput = document.getElementById('verificationCode');
+        if (codeInput) {
+            codeInput.value = '';
+            codeInput.focus();
         }
     }
     
@@ -149,18 +235,21 @@ export class UserManager {
         this.app.setCurrentUser(user);
         this.app.logActivity('user_registered', { user });
         
-        // Send lead data to backend/CRM
-        this.captureLeadData(user);
-        
         // Initialize usage tracking
         this.initializeUsageTracking(user);
         
-        this.app.uiManager.showModuleDashboard();
+        // Show success message
+        this.app.uiManager.showSuccess(`Welcome ${user.firstName}! Your email has been verified.`);
+        
+        // Show dashboard
+        setTimeout(() => {
+            this.app.uiManager.showModuleDashboard();
+        }, 1500);
     }
     
     async captureLeadData(user) {
         try {
-            // In production, this would send to your CRM/database
+            // Enhanced lead data with verification status
             const leadData = {
                 firstName: user.firstName,
                 email: user.email,
@@ -169,35 +258,56 @@ export class UserManager {
                 targetMarket: user.targetMarket,
                 customBehavior: user.customBehavior,
                 timestamp: user.startTime,
-                source: 'cold-call-trainer'
+                source: 'cold-call-trainer',
+                emailVerified: user.emailVerified || false,
+                accessLevel: user.accessLevel,
+                userAgent: navigator.userAgent,
+                referrer: document.referrer
             };
             
-            console.log('📧 Lead captured:', leadData);
+            console.log('📧 Enhanced lead captured:', leadData);
             
-            // Store locally for now
+            // Store locally
             const leads = JSON.parse(localStorage.getItem('capturedLeads') || '[]');
             leads.push(leadData);
             localStorage.setItem('capturedLeads', JSON.stringify(leads));
             
-            // In production, send to backend
-            // await fetch('/api/capture-lead', {
-            //     method: 'POST',
-            //     headers: { 'Content-Type': 'application/json' },
-            //     body: JSON.stringify(leadData)
-            // });
+            // In production, send to backend/CRM
+            // await this.sendToBackend(leadData);
             
         } catch (error) {
             console.error('Failed to capture lead data:', error);
         }
     }
     
+    // Production method for sending to backend
+    async sendToBackend(leadData) {
+        try {
+            const response = await fetch('/api/capture-lead', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(leadData)
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            console.log('✅ Lead sent to backend successfully');
+        } catch (error) {
+            console.error('❌ Failed to send lead to backend:', error);
+        }
+    }
+    
     determineAccessLevel(email) {
-        // Default logic - in production this would check against a database
+        // Enhanced access level logic
         // For demo purposes, all users get unlimited access
         return this.accessLevels.UNLIMITED;
         
-        // Example logic:
-        // if (email.includes('premium')) return this.accessLevels.UNLIMITED;
+        // Production logic examples:
+        // if (email.includes('premium') || email.includes('pro')) return this.accessLevels.UNLIMITED;
         // if (email.includes('trial')) return this.accessLevels.UNLIMITED_LOCKED;
         // return this.accessLevels.LIMITED;
     }

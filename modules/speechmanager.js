@@ -1,5 +1,6 @@
 /**
  * Speech Manager - Handles speech recognition and text-to-speech
+ * Phase 2 Update: Enhanced timeout system with 5-second timeout for warm-up
  */
 
 export class SpeechManager {
@@ -19,11 +20,12 @@ export class SpeechManager {
         this.repeatAttempts = 0;
         this.maxRepeatAttempts = 3;
         
-        // Timeout system
+        // Phase 2 E2: Enhanced timeout system
         this.responseTimeout = null;
-        this.timeoutDuration = 5000; // 5 seconds
+        this.timeoutDuration = 5000; // Phase 2 E2: 5-second timeout
         this.timeoutResponses = [];
         this.skippedQuestions = [];
+        this.timeoutCountdown = null;
     }
     
     async init() {
@@ -93,8 +95,16 @@ export class SpeechManager {
         }
     }
     
+    // Phase 2 E2: Enhanced timeout system with visual countdown
     startResponseTimeout() {
         this.clearResponseTimeout();
+        
+        const currentModule = this.app.getCurrentModule();
+        
+        // Only show timeout countdown for warmup module
+        if (currentModule === 'warmup') {
+            this.startTimeoutCountdown();
+        }
         
         this.responseTimeout = setTimeout(() => {
             if (this.isRecording) {
@@ -103,38 +113,70 @@ export class SpeechManager {
         }, this.timeoutDuration);
     }
     
+    // Phase 2 E2: Visual countdown for warmup
+    startTimeoutCountdown() {
+        let timeLeft = Math.floor(this.timeoutDuration / 1000); // 5 seconds
+        
+        const updateCountdown = () => {
+            if (timeLeft > 0 && this.isRecording) {
+                this.updateVoiceStatus(`Listening... (${timeLeft}s)`);
+                timeLeft--;
+                this.timeoutCountdown = setTimeout(updateCountdown, 1000);
+            }
+        };
+        
+        updateCountdown();
+    }
+    
     clearResponseTimeout() {
         if (this.responseTimeout) {
             clearTimeout(this.responseTimeout);
             this.responseTimeout = null;
         }
+        
+        if (this.timeoutCountdown) {
+            clearTimeout(this.timeoutCountdown);
+            this.timeoutCountdown = null;
+        }
     }
     
+    // Phase 2 E2: Enhanced timeout handling
     handleTimeout() {
-        console.log('⏰ Response timeout');
+        console.log('⏰ Response timeout - 5 seconds elapsed');
         this.stopListening();
         
         const currentModule = this.app.getCurrentModule();
         
         if (currentModule === 'warmup') {
-            // Track timeout for warmup
+            // Phase 2 E2: Track timeout for warmup with enhanced data
             this.timeoutResponses.push({
                 questionNumber: this.app.getCurrentProgress() + 1,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                questionText: this.getCurrentQuestionText()
             });
             
-            this.updateVoiceStatus('Too slow! Moving to next question...');
+            // Phase 2 E2: "Too slow" message
+            this.updateVoiceStatus('⏰ Too slow! Moving to next question...');
             
-            // Move to next question after brief pause
+            // Brief pause before moving to next question
             setTimeout(() => {
                 if (this.app.isInCall()) {
                     this.app.callManager.handleTimeoutNext();
                 }
-            }, 2000);
+            }, 1500);
         } else {
             this.updateVoiceStatus('Too slow - please respond faster');
             this.speakAI("I didn't hear anything. Please try again and speak more clearly.");
         }
+    }
+    
+    getCurrentQuestionText() {
+        // Get the current question text for better tracking
+        const currentIndex = this.app.getCurrentProgress();
+        if (this.app.callManager.warmupQuestions && this.app.callManager.warmupQuestions[currentIndex]) {
+            return this.app.callManager.warmupQuestions[currentIndex];
+        }
+        return `Question ${currentIndex + 1}`;
     }
     
     isSkipCommand(transcript) {
@@ -143,22 +185,25 @@ export class SpeechManager {
         return skipCommands.some(command => lowerTranscript.includes(command));
     }
     
+    // Phase 2 E2: Enhanced skip command handling
     handleSkipCommand() {
         const currentModule = this.app.getCurrentModule();
         
         if (currentModule === 'warmup') {
             this.skippedQuestions.push({
                 questionNumber: this.app.getCurrentProgress() + 1,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                questionText: this.getCurrentQuestionText(),
+                method: 'voice_command'
             });
             
-            this.updateVoiceStatus('Question skipped. Moving to next...');
+            this.updateVoiceStatus('⏭️ Question skipped. Moving to next...');
             
             setTimeout(() => {
                 if (this.app.isInCall()) {
                     this.app.callManager.handleSkipNext();
                 }
-            }, 1500);
+            }, 1000);
         } else {
             this.updateVoiceStatus('Skip not available in this mode');
         }
@@ -169,7 +214,14 @@ export class SpeechManager {
         
         this.continuousListening = true;
         this.startListening();
-        this.updateVoiceStatus('Your turn - speak naturally');
+        
+        // Phase 2 E2: Enhanced status message for warmup
+        const currentModule = this.app.getCurrentModule();
+        if (currentModule === 'warmup') {
+            this.updateVoiceStatus('Your turn - speak clearly (5s timeout)');
+        } else {
+            this.updateVoiceStatus('Your turn - speak naturally');
+        }
     }
     
     startListening() {
@@ -220,7 +272,8 @@ export class SpeechManager {
             transcript, 
             confidence,
             module: this.app.getCurrentModule(), 
-            progress: this.app.getCurrentProgress() 
+            progress: this.app.getCurrentProgress(),
+            responseTime: this.speechStartTime ? Date.now() - this.speechStartTime : 0
         });
         
         // Generate AI response
@@ -394,7 +447,7 @@ export class SpeechManager {
     
     getConversationContext() {
         const contexts = {
-            warmup: "This is a warm-up exercise. The caller needs quick practice.",
+            warmup: "This is a warm-up exercise. The caller needs quick practice with rapid-fire questions.",
             opener: "This is opener practice. Evaluate their greeting, name introduction, and reason for calling.",
             pitch: "This is pitch practice. Evaluate if they presented benefits, specifics, and engagement.",
             fullcall: "This is a complete cold call simulation. Act like a real prospect.",
@@ -678,6 +731,7 @@ export class SpeechManager {
         }
     }
     
+    // Phase 2 E2: Enhanced tracking methods
     getSkippedQuestions() {
         return this.skippedQuestions;
     }
@@ -686,11 +740,32 @@ export class SpeechManager {
         return this.timeoutResponses;
     }
     
+    // Phase 2 E2: Get detailed session statistics
+    getSessionStatistics() {
+        const totalQuestions = this.app.getCurrentProgress();
+        const skippedCount = this.skippedQuestions.length;
+        const timeoutCount = this.timeoutResponses.length;
+        const correctCount = this.app.callManager?.correctAnswers || 0;
+        const incorrectCount = totalQuestions - correctCount - skippedCount - timeoutCount;
+        
+        return {
+            total: totalQuestions,
+            correct: correctCount,
+            incorrect: Math.max(0, incorrectCount),
+            skipped: skippedCount,
+            timeouts: timeoutCount,
+            accuracy: totalQuestions > 0 ? (correctCount / totalQuestions * 100).toFixed(1) : 0,
+            responseRate: totalQuestions > 0 ? ((totalQuestions - skippedCount - timeoutCount) / totalQuestions * 100).toFixed(1) : 0
+        };
+    }
+    
     clearSessionData() {
         this.skippedQuestions = [];
         this.timeoutResponses = [];
         this.isInRepeatLoop = false;
         this.clearResponseTimeout();
+        
+        console.log('🧹 Speech session data cleared');
     }
     
     cleanup() {
@@ -699,5 +774,7 @@ export class SpeechManager {
         this.clearResponseTimeout();
         this.continuousListening = false;
         this.clearSessionData();
+        
+        console.log('🧹 Speech Manager cleanup complete');
     }
 }

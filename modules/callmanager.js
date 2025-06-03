@@ -1,5 +1,6 @@
 /**
  * Call Manager - Handles call flow, progression, and phone interface
+ * Phase 2 Update: Enhanced warm-up challenge with proper scoring and timeout features
  */
 
 export class CallManager {
@@ -46,8 +47,12 @@ export class CallManager {
         document.getElementById('moduleType').textContent = `${this.app.getCurrentMode().toUpperCase()} Mode`;
         document.getElementById('moduleDescription').textContent = module.description;
         
-        // Setup progress display
-        if (this.app.getCurrentMode() === 'marathon' || this.app.getCurrentMode() === 'legend') {
+        // Setup progress display - Phase 2 E1: Proper warmup progress
+        if (this.app.getCurrentModule() === 'warmup') {
+            document.getElementById('callProgressContainer').style.display = 'block';
+            this.updateWarmupProgress();
+            this.addSkipButton(); // Phase 2 E2: Add skip functionality
+        } else if (this.app.getCurrentMode() === 'marathon' || this.app.getCurrentMode() === 'legend') {
             document.getElementById('callProgressContainer').style.display = 'block';
             this.updateCallProgress();
         } else {
@@ -61,8 +66,73 @@ export class CallManager {
         
         this.app.uiManager.resetVoiceVisualizer();
         
-        // Fix hangup button positioning (G1)
+        // Fix hangup button positioning (Phase 1 G1)
         this.fixHangupButtonPosition();
+    }
+    
+    // Phase 2 E2: Add skip button for warm-up challenge
+    addSkipButton() {
+        const voiceStatus = document.getElementById('voiceStatus');
+        if (!voiceStatus) return;
+        
+        // Remove existing skip button
+        const existingSkipBtn = document.getElementById('skipQuestionBtn');
+        if (existingSkipBtn) {
+            existingSkipBtn.remove();
+        }
+        
+        // Create skip button
+        const skipButton = document.createElement('button');
+        skipButton.id = 'skipQuestionBtn';
+        skipButton.textContent = 'NEXT QUESTION';
+        skipButton.style.cssText = `
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        `;
+        
+        skipButton.addEventListener('mouseover', () => {
+            skipButton.style.background = 'rgba(255, 255, 255, 0.3)';
+            skipButton.style.borderColor = 'rgba(255, 255, 255, 0.5)';
+        });
+        
+        skipButton.addEventListener('mouseout', () => {
+            skipButton.style.background = 'rgba(255, 255, 255, 0.2)';
+            skipButton.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+        });
+        
+        skipButton.addEventListener('click', () => {
+            this.handleSkipQuestion();
+        });
+        
+        // Insert after voice status
+        voiceStatus.parentNode.insertBefore(skipButton, voiceStatus.nextSibling);
+    }
+    
+    // Phase 2 E2: Handle skip question functionality
+    handleSkipQuestion() {
+        if (this.app.getCurrentModule() !== 'warmup') return;
+        
+        // Record the skip
+        this.app.speechManager.skippedQuestions.push({
+            questionNumber: this.app.getCurrentProgress() + 1,
+            timestamp: new Date().toISOString()
+        });
+        
+        this.app.speechManager.updateVoiceStatus('Question skipped...');
+        
+        // Move to next question
+        setTimeout(() => {
+            this.handleWarmupNext();
+        }, 1000);
     }
     
     fixHangupButtonPosition() {
@@ -184,6 +254,7 @@ export class CallManager {
     }
     
     generateWarmupMessage(character) {
+        // Phase 2 E1: Complete set of 25 warmup questions
         const warmupPrompts = [
             "Give me your opener.",
             "What's your pitch in one sentence?",
@@ -225,7 +296,6 @@ export class CallManager {
     
     handleSuccessfulInteraction() {
         this.app.setCurrentProgress(this.app.getCurrentProgress() + 1);
-        this.updateCallProgress();
         
         const currentModule = this.app.getCurrentModule();
         const currentProgress = this.app.getCurrentProgress();
@@ -236,11 +306,15 @@ export class CallManager {
         if (currentModule === 'warmup') {
             this.correctAnswers++;
             this.handleWarmupProgress();
-        } else if (currentProgress >= maxProgress) {
-            console.log(`🎯 Reached max progress - completing ${this.app.getCurrentMode()} mode`);
-            this.completeCurrentCall();
         } else {
-            this.showQuickSuccess();
+            this.updateCallProgress();
+            
+            if (currentProgress >= maxProgress) {
+                console.log(`🎯 Reached max progress - completing ${this.app.getCurrentMode()} mode`);
+                this.completeCurrentCall();
+            } else {
+                this.showQuickSuccess();
+            }
         }
     }
     
@@ -248,8 +322,8 @@ export class CallManager {
         const currentProgress = this.app.getCurrentProgress();
         const maxProgress = this.app.getMaxProgress();
         
-        // Update score display
-        this.updateWarmupScore();
+        // Phase 2 E1: Update live score counter
+        this.updateWarmupProgress();
         
         if (currentProgress >= maxProgress) {
             // Warmup complete - check score
@@ -265,15 +339,43 @@ export class CallManager {
         }
     }
     
+    // Phase 2 E1: Enhanced warmup progress display
+    updateWarmupProgress() {
+        const currentProgress = this.app.getCurrentProgress();
+        const totalQuestions = 25; // Phase 2 E1: Fixed to 25 questions
+        const score = this.correctAnswers;
+        
+        // Update progress bar
+        const progressPercent = (currentProgress / totalQuestions) * 100;
+        const progressFill = document.getElementById('callProgressFill');
+        if (progressFill) {
+            progressFill.style.width = `${progressPercent}%`;
+        }
+        
+        // Phase 2 E1: Live score counter format "correct/attempted"
+        const progressText = document.getElementById('callProgressText');
+        if (progressText) {
+            progressText.textContent = `${score}/${currentProgress}`;
+        }
+        
+        // Update voice status with current score
+        this.app.speechManager.updateVoiceStatus(`Score: ${score}/${currentProgress} | Question ${currentProgress + 1}/25`);
+        
+        console.log(`📊 Warmup Progress: ${score}/${currentProgress} (${progressPercent.toFixed(1)}%)`);
+    }
+    
     completeWarmupChallenge() {
         const module = this.app.moduleManager.modules.warmup;
         const score = this.correctAnswers;
-        const passingScore = module.passingScore;
+        const passingScore = module.passingScore; // 18/25 needed to pass
+        const totalQuestions = this.app.getCurrentProgress();
         
         // Set the score as current progress for saving
         this.app.setCurrentProgress(score);
         
         const passed = score >= passingScore;
+        
+        console.log(`🎯 Warmup Challenge Complete: ${score}/${totalQuestions} (Need ${passingScore} to pass: ${passed ? 'PASSED' : 'FAILED'})`);
         
         setTimeout(() => {
             this.endCall(true);
@@ -296,35 +398,32 @@ export class CallManager {
         }
     }
     
-    updateWarmupScore() {
-        const currentProgress = this.app.getCurrentProgress();
-        
-        // Update voice status to show score
-        this.app.speechManager.updateVoiceStatus(`Score: ${this.correctAnswers}/${currentProgress}`);
-        
-        // Update call progress to show questions completed
-        const progressPercent = (currentProgress / 25) * 100;
-        document.getElementById('callProgressFill').style.width = `${progressPercent}%`;
-        document.getElementById('callProgressText').textContent = `${this.correctAnswers}/${currentProgress}`;
+    // Phase 2 E2: Handle timeout with proper progression
+    handleTimeoutNext() {
+        this.handleWarmupNext();
     }
     
-    handleTimeoutNext() {
+    // Phase 2 E2: Handle skip with proper progression
+    handleSkipNext() {
+        this.handleWarmupNext();
+    }
+    
+    // Phase 2 E2: Common method for moving to next question (timeout/skip)
+    handleWarmupNext() {
         // Move to next question without marking as correct
         this.app.setCurrentProgress(this.app.getCurrentProgress() + 1);
         
         const currentProgress = this.app.getCurrentProgress();
         const maxProgress = this.app.getMaxProgress();
         
+        // Update progress display
+        this.updateWarmupProgress();
+        
         if (currentProgress >= maxProgress) {
             this.completeWarmupChallenge();
         } else {
             this.askNextWarmupQuestion();
         }
-    }
-    
-    handleSkipNext() {
-        // Same as timeout - move to next without marking correct
-        this.handleTimeoutNext();
     }
     
     completeCurrentCall() {
@@ -340,7 +439,11 @@ export class CallManager {
         this.app.speechManager.updateVoiceStatus('Great response! Continuing...');
         setTimeout(() => {
             if (this.app.isInCall()) {
-                this.app.speechManager.updateVoiceStatus('Your turn - keep going');
+                if (this.app.getCurrentModule() === 'warmup') {
+                    this.app.speechManager.updateVoiceStatus(`Score: ${this.correctAnswers}/${this.app.getCurrentProgress()} | Next question coming...`);
+                } else {
+                    this.app.speechManager.updateVoiceStatus('Your turn - keep going');
+                }
             }
         }, 2000);
     }
@@ -353,12 +456,7 @@ export class CallManager {
         const progressPercent = (currentProgress / maxProgress) * 100;
         
         document.getElementById('callProgressFill').style.width = `${progressPercent}%`;
-        
-        if (this.app.getCurrentModule() === 'warmup') {
-            document.getElementById('callProgressText').textContent = `${this.correctAnswers}/${currentProgress}`;
-        } else {
-            document.getElementById('callProgressText').textContent = `${currentProgress}/${maxProgress}`;
-        }
+        document.getElementById('callProgressText').textContent = `${currentProgress}/${maxProgress}`;
     }
     
     updateCallStatus(status) {
@@ -393,6 +491,12 @@ export class CallManager {
         if (this.callTimer) {
             clearInterval(this.callTimer);
             this.callTimer = null;
+        }
+        
+        // Remove skip button if it exists
+        const skipBtn = document.getElementById('skipQuestionBtn');
+        if (skipBtn) {
+            skipBtn.remove();
         }
         
         // Track call duration
@@ -430,48 +534,73 @@ export class CallManager {
         }
     }
     
+    // Phase 2 E2: Enhanced warmup summary with skip/timeout details
     showWarmupSummary() {
         const skipped = this.app.speechManager.getSkippedQuestions();
         const timeouts = this.app.speechManager.getTimeoutResponses();
         const score = this.correctAnswers;
         const totalQuestions = this.app.getCurrentProgress();
+        const passingScore = 18;
         
         let summaryContent = `
             <div style="text-align: center; margin-bottom: 20px;">
-                <div style="font-size: 2rem; font-weight: bold; color: ${score >= 18 ? '#4CAF50' : '#f44336'};">
+                <div style="font-size: 2rem; font-weight: bold; color: ${score >= passingScore ? '#4CAF50' : '#f44336'};">
                     ${score}/${totalQuestions}
                 </div>
-                <div>Questions Answered Correctly</div>
+                <div style="margin-bottom: 10px;">Questions Answered Correctly</div>
+                <div style="font-size: 0.9rem; color: #6c757d;">
+                    ${score >= passingScore ? '🎉 PASSED' : '❌ FAILED'} (Need ${passingScore}/25 to pass)
+                </div>
             </div>
         `;
         
+        // Phase 2 E2: Show skipped questions summary
         if (skipped.length > 0) {
             summaryContent += `
-                <div style="margin-bottom: 15px;">
-                    <strong>Skipped Questions (${skipped.length}):</strong>
-                    <ul style="text-align: left; margin-top: 10px;">
+                <div style="margin-bottom: 15px; text-align: left;">
+                    <strong>⏭️ Skipped Questions (${skipped.length}):</strong>
+                    <ul style="margin-top: 5px; padding-left: 20px;">
                         ${skipped.map(q => `<li>Question ${q.questionNumber}</li>`).join('')}
                     </ul>
                 </div>
             `;
         }
         
+        // Phase 2 E2: Show timeout questions summary
         if (timeouts.length > 0) {
             summaryContent += `
-                <div style="margin-bottom: 15px;">
-                    <strong>Too Slow Responses (${timeouts.length}):</strong>
-                    <ul style="text-align: left; margin-top: 10px;">
+                <div style="margin-bottom: 15px; text-align: left;">
+                    <strong>⏰ Too Slow Responses (${timeouts.length}):</strong>
+                    <ul style="margin-top: 5px; padding-left: 20px;">
                         ${timeouts.map(t => `<li>Question ${t.questionNumber}</li>`).join('')}
                     </ul>
                 </div>
             `;
         }
         
-        const passed = score >= 18;
+        // Performance breakdown
+        const correctAnswered = score;
+        const incorrectAnswered = totalQuestions - score - skipped.length - timeouts.length;
+        
+        if (totalQuestions > 0) {
+            summaryContent += `
+                <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; text-align: left;">
+                    <strong>📊 Performance Breakdown:</strong>
+                    <div style="margin-top: 10px;">
+                        <div>✅ Correct: ${correctAnswered}</div>
+                        <div>❌ Incorrect: ${incorrectAnswered}</div>
+                        <div>⏭️ Skipped: ${skipped.length}</div>
+                        <div>⏰ Too Slow: ${timeouts.length}</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        const passed = score >= passingScore;
         if (passed) {
-            summaryContent += `<div style="color: #4CAF50; font-weight: bold;">🎉 Challenge Passed! Next module unlocked.</div>`;
+            summaryContent += `<div style="color: #4CAF50; font-weight: bold; text-align: center; font-size: 1.1rem;">🎉 Challenge Passed! Next module unlocked.</div>`;
         } else {
-            summaryContent += `<div style="color: #f44336; font-weight: bold;">Need 18/25 to pass. Try again!</div>`;
+            summaryContent += `<div style="color: #f44336; font-weight: bold; text-align: center; font-size: 1.1rem;">Need ${passingScore}/25 to pass. Try again!</div>`;
         }
         
         this.app.uiManager.showFeedbackModal('Warm-up Challenge Complete', summaryContent);
@@ -560,7 +689,7 @@ export class CallManager {
                 coachingMessage += "Work on your pitch delivery and objection handling. Make sure to ask for the meeting.";
                 break;
             case 'warmup':
-                coachingMessage += `You completed ${currentProgress} questions. Practice the fundamentals more.`;
+                coachingMessage += `You completed ${currentProgress} questions with ${this.correctAnswers} correct answers. Practice the fundamentals more.`;
                 break;
             case 'fullcall':
                 coachingMessage += "Complete cold calls require persistence. Practice each component separately first.";

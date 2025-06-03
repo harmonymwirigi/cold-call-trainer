@@ -236,9 +236,21 @@ class ColdCallTrainer {
 // Global app instance
 let app;
 
-// Global Functions for HTML onclick handlers
+        // Global Functions for HTML onclick handlers
 window.startTraining = function() {
     app?.startTraining();
+};
+
+window.verifyEmailCode = function() {
+    app?.userManager.verifyEmailCode();
+};
+
+window.resendVerificationCode = function() {
+    app?.userManager.resendVerificationCode();
+};
+
+window.showRegistrationForm = function() {
+    app?.userManager.showRegistrationForm();
 };
 
 window.startModule = function(moduleId, mode) {

@@ -1,5 +1,6 @@
 /**
  * UI Manager - Handles all user interface updates and interactions
+ * Phase 2 Update: Enhanced prospect targeting and form improvements
  */
 
 export class UIManager {
@@ -17,10 +18,10 @@ export class UIManager {
     }
     
     setupUIElements() {
-        // Update header text
+        // Update header text (already done in Phase 1)
         this.updateHeaderText();
         
-        // Update form labels
+        // Update form labels for Phase 2
         this.updateFormLabels();
     }
     
@@ -41,6 +42,7 @@ export class UIManager {
     }
     
     updateFormLabels() {
+        // Update to "First Name" (Phase 2 B1)
         const nameLabel = document.querySelector('label[for="userName"]');
         if (nameLabel) {
             nameLabel.textContent = 'First Name:';
@@ -60,37 +62,39 @@ export class UIManager {
             return;
         }
         
+        // Phase 2 C1: Complete list of 25 prospect job titles
         const jobTitles = [
             'Brand/Communications Manager',
             'CEO (Chief Executive Officer)',
-            'CFO (Chief Financial Officer)',
+            'CFO (Chief Financial Officer)', 
             'CIO (Chief Information Officer)',
+            'CMO (Chief Marketing Officer)',
             'COO (Chief Operating Officer)',
             'Content Marketing Manager',
             'CTO (Chief Technology Officer)',
+            'Customer Success Manager',
             'Demand Generation Manager',
             'Digital Marketing Manager',
+            'Director of Operations',
             'Engineering Manager',
             'Finance Director',
             'Founder / Owner / Managing Director (MD)',
             'Head of Product',
+            'Head of Sales',
+            'IT Director',
+            'Marketing Director',
+            'Operations Manager',
+            'Product Manager',
             'Purchasing Manager',
             'R&D/Product Development Manager',
             'Sales Manager',
-            'Sales Operations Manager',
-            'Social Media Manager',
-            'UX/UI Design Lead',
-            'VP of Finance',
-            'VP of HR',
-            'VP of IT/Engineering',
-            'VP of Marketing',
-            'VP of Sales'
+            'Sales Operations Manager'
         ];
         
-        // Update the select element ID and attributes
+        // Update the select element ID and attributes (Phase 2 C1)
         jobTitleSelect.id = 'prospectJobTitle';
         
-        // Update label
+        // Update label to "Prospect Job Title"
         const label = jobTitleSelect.previousElementSibling;
         if (label && label.tagName === 'LABEL') {
             label.textContent = 'Prospect Job Title:';
@@ -135,9 +139,10 @@ export class UIManager {
             return;
         }
         
+        // Phase 2 C2: Complete list of 15 industries
         const industries = [
             'Education & e-Learning',
-            'Energy & Utilities',
+            'Energy & Utilities', 
             'Finance & Banking',
             'Government & Public Sector',
             'Healthcare & Life Sciences',
@@ -165,6 +170,18 @@ export class UIManager {
         industrySelect.id = 'prospectIndustry';
         industrySelect.required = true;
         
+        // Style the select to match existing form elements
+        industrySelect.style.cssText = `
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-family: inherit;
+            background: #f8f9fa;
+            transition: all 0.3s ease;
+        `;
+        
         // Add default option
         const defaultOption = document.createElement('option');
         defaultOption.value = '';
@@ -184,6 +201,19 @@ export class UIManager {
         otherOption.value = 'other';
         otherOption.textContent = 'Other (Please specify)';
         industrySelect.appendChild(otherOption);
+        
+        // Add focus/blur effects
+        industrySelect.addEventListener('focus', () => {
+            industrySelect.style.borderColor = '#667eea';
+            industrySelect.style.background = 'white';
+            industrySelect.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
+        });
+        
+        industrySelect.addEventListener('blur', () => {
+            industrySelect.style.borderColor = '#e2e8f0';
+            industrySelect.style.background = '#f8f9fa';
+            industrySelect.style.boxShadow = 'none';
+        });
         
         // Add event listener for "Other" selection
         industrySelect.addEventListener('change', (e) => {
@@ -214,16 +244,24 @@ export class UIManager {
                 return;
             }
             
+            // Phase 2 C3: Custom AI Behavior field
             const customGroup = document.createElement('div');
             customGroup.className = 'form-group';
             
             const customLabel = document.createElement('label');
             customLabel.setAttribute('for', 'customBehavior');
             customLabel.textContent = 'Additional AI Behavior (Optional):';
+            customLabel.style.cssText = `
+                display: block;
+                margin-bottom: 8px;
+                font-weight: 600;
+                color: #4a5568;
+                font-size: 0.95rem;
+            `;
             
             const customTextarea = document.createElement('textarea');
             customTextarea.id = 'customBehavior';
-            customTextarea.placeholder = 'e.g., "Act more skeptical", "Be very busy", "Show interest in cost savings"...';
+            customTextarea.placeholder = 'e.g., "Act more skeptical", "Be very busy", "Show interest in cost savings", "Focus on budget concerns"...';
             customTextarea.rows = 3;
             customTextarea.style.cssText = `
                 width: 100%;
@@ -235,8 +273,21 @@ export class UIManager {
                 background: #f8f9fa;
                 resize: vertical;
                 min-height: 80px;
+                transition: all 0.3s ease;
             `;
             
+            // Add character counter
+            const charCounter = document.createElement('div');
+            charCounter.id = 'customBehaviorCounter';
+            charCounter.style.cssText = `
+                text-align: right;
+                font-size: 0.8rem;
+                color: #6c757d;
+                margin-top: 5px;
+            `;
+            charCounter.textContent = '0/200 characters';
+            
+            // Add focus/blur effects and character counting
             customTextarea.addEventListener('focus', () => {
                 customTextarea.style.borderColor = '#667eea';
                 customTextarea.style.background = 'white';
@@ -249,13 +300,30 @@ export class UIManager {
                 customTextarea.style.boxShadow = 'none';
             });
             
+            customTextarea.addEventListener('input', (e) => {
+                const length = e.target.value.length;
+                const maxLength = 200;
+                charCounter.textContent = `${length}/${maxLength} characters`;
+                
+                if (length > maxLength) {
+                    charCounter.style.color = '#dc3545';
+                    e.target.value = e.target.value.substring(0, maxLength);
+                    charCounter.textContent = `${maxLength}/${maxLength} characters`;
+                } else if (length > maxLength * 0.8) {
+                    charCounter.style.color = '#ffc107';
+                } else {
+                    charCounter.style.color = '#6c757d';
+                }
+            });
+            
             customGroup.appendChild(customLabel);
             customGroup.appendChild(customTextarea);
+            customGroup.appendChild(charCounter);
             
             // Insert after industry group
             industryContainer.insertAdjacentElement('afterend', customGroup);
             
-            console.log('✅ Custom behavior field created');
+            console.log('✅ Custom behavior field created with character counter');
         }, 100); // Small delay to ensure industry dropdown exists
     }
     
@@ -291,6 +359,7 @@ export class UIManager {
             border-radius: 8px;
             margin-top: 10px;
             font-size: 0.9rem;
+            transition: all 0.3s ease;
         `;
         
         const label = document.createElement('div');
@@ -301,6 +370,15 @@ export class UIManager {
             color: #667eea;
             font-weight: 600;
         `;
+        
+        // Add focus effect
+        customInput.addEventListener('focus', () => {
+            customInput.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
+        });
+        
+        customInput.addEventListener('blur', () => {
+            customInput.style.boxShadow = 'none';
+        });
         
         afterElement.parentNode.appendChild(label);
         afterElement.parentNode.appendChild(customInput);
@@ -366,7 +444,7 @@ export class UIManager {
                 if (module.hasMarathon) {
                     marathonBtn.disabled = false;
                     marathonBtn.style.display = 'inline-block';
-                    // Fix marathon button text centering
+                    // Fix marathon button text centering (from Phase 1)
                     marathonBtn.style.textAlign = 'center';
                     marathonBtn.style.whiteSpace = 'nowrap';
                     marathonBtn.style.overflow = 'hidden';
@@ -375,7 +453,7 @@ export class UIManager {
                 }
             }
             
-            // Handle legend button - REMOVE from UI (F1)
+            // Handle legend button - REMOVE from UI (Phase 1 F1)
             if (legendBtn) {
                 legendBtn.style.display = 'none';
             }
@@ -433,16 +511,18 @@ export class UIManager {
                 progressText.textContent = progressLabel;
             }
         } else {
-            // Locked state
+            // Locked state with improved messaging (Phase 1 G1)
             if (progressFill) {
                 progressFill.style.width = '0%';
             }
             
             if (progressText) {
                 const prevModule = this.app.moduleManager.getPreviousModule(module.id);
-                progressText.textContent = prevModule 
-                    ? `Pass the Marathon of ${prevModule.name} to unlock this roleplay`
-                    : 'Locked';
+                if (prevModule) {
+                    progressText.textContent = `Complete ${prevModule.name} Marathon to unlock`;
+                } else {
+                    progressText.textContent = 'Locked';
+                }
             }
         }
     }
@@ -653,7 +733,7 @@ export class UIManager {
                     to { transform: translateX(-50%) translateY(0); opacity: 1; }
                 }
                 
-                /* Fix marathon button text centering (F2) */
+                /* Fix marathon button text centering (Phase 1 F2) */
                 .btn-marathon {
                     text-align: center !important;
                     white-space: nowrap !important;
@@ -665,7 +745,7 @@ export class UIManager {
                     padding: 8px 12px !important;
                 }
                 
-                /* Phone interface improvements (G1) */
+                /* Phone interface improvements (Phase 1 G1) */
                 .call-btn.decline-btn {
                     position: relative !important;
                     z-index: 10 !important;
@@ -681,7 +761,7 @@ export class UIManager {
                     padding: 0 20px !important;
                 }
                 
-                /* Better locked state indicators (G1) */
+                /* Better locked state indicators (Phase 1 G1) */
                 .module-card.locked {
                     opacity: 0.6;
                     background: #f8f9fa;
@@ -695,6 +775,97 @@ export class UIManager {
                     padding: 5px 10px;
                     border-radius: 5px;
                     font-size: 0.85rem;
+                }
+
+                /* Phase 2: Enhanced form styling */
+                .user-form {
+                    position: relative;
+                    transition: all 0.3s ease;
+                }
+                
+                .user-form.verification-mode {
+                    transform: translateX(-10px);
+                }
+                
+                #verificationForm {
+                    animation: slideInRight 0.4s ease;
+                }
+                
+                @keyframes slideInRight {
+                    from { transform: translateX(100%); opacity: 0; }
+                    to { transform: translateX(0); opacity: 1; }
+                }
+                
+                /* Enhanced select and textarea styling */
+                select:focus, textarea:focus {
+                    outline: none !important;
+                    border-color: #667eea !important;
+                    background: white !important;
+                    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+                }
+                
+                /* Character counter styling */
+                .char-counter {
+                    font-size: 0.8rem;
+                    color: #6c757d;
+                    text-align: right;
+                    margin-top: 5px;
+                    transition: color 0.3s ease;
+                }
+                
+                .char-counter.warning {
+                    color: #ffc107;
+                }
+                
+                .char-counter.danger {
+                    color: #dc3545;
+                }
+                
+                /* Custom input animations */
+                .custom-input-appear {
+                    animation: fadeInDown 0.3s ease;
+                }
+                
+                @keyframes fadeInDown {
+                    from { transform: translateY(-10px); opacity: 0; }
+                    to { transform: translateY(0); opacity: 1; }
+                }
+                
+                /* Verification code input styling */
+                #verificationCode {
+                    text-align: center !important;
+                    font-size: 1.2rem !important;
+                    letter-spacing: 0.2rem !important;
+                    font-weight: 600 !important;
+                }
+                
+                #verificationCode:focus {
+                    letter-spacing: 0.3rem !important;
+                    transform: scale(1.02);
+                }
+                
+                /* Success animations */
+                .success-bounce {
+                    animation: successBounce 0.6s ease;
+                }
+                
+                @keyframes successBounce {
+                    0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+                    40% { transform: translateY(-10px); }
+                    60% { transform: translateY(-5px); }
+                }
+                
+                /* Loading states */
+                .loading-dots::after {
+                    content: '';
+                    animation: loadingDots 1.5s steps(4, end) infinite;
+                }
+                
+                @keyframes loadingDots {
+                    0%, 20% { content: '.'; }
+                    40% { content: '..'; }
+                    60% { content: '...'; }
+                    80%, 100% { content: ''; }
                 }
             `;
             document.head.appendChild(style);
