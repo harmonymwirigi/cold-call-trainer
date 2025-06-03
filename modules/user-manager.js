@@ -21,11 +21,11 @@ export class UserManager {
         const firstName = document.getElementById('userName').value.trim();
         const email = document.getElementById('userEmail').value.trim();
         const prospectJobTitle = document.getElementById('prospectJobTitle').value;
-        const prospectIndustry = document.getElementById('prospectIndustry').value;
+        const prospectIndustry = document.getElementById('prospectIndustry')?.value || '';
         const targetMarket = document.getElementById('targetMarket').value;
         const customBehavior = document.getElementById('customBehavior')?.value.trim() || '';
         
-        if (!firstName || !email || !prospectJobTitle || !prospectIndustry || !targetMarket) {
+        if (!firstName || !email || !prospectJobTitle || !targetMarket) {
             this.app.uiManager.showError('Please fill in all required fields to continue.');
             return;
         }
@@ -35,11 +35,33 @@ export class UserManager {
             return;
         }
         
+        // Get custom job title if "other" was selected
+        let finalJobTitle = prospectJobTitle;
+        if (prospectJobTitle === 'other') {
+            const customJobTitle = document.getElementById('customJobTitle')?.value.trim();
+            if (!customJobTitle) {
+                this.app.uiManager.showError('Please specify the custom job title.');
+                return;
+            }
+            finalJobTitle = customJobTitle;
+        }
+        
+        // Get custom industry if "other" was selected
+        let finalIndustry = prospectIndustry;
+        if (prospectIndustry === 'other') {
+            const customIndustry = document.getElementById('customIndustry')?.value.trim();
+            if (!customIndustry) {
+                this.app.uiManager.showError('Please specify the custom industry.');
+                return;
+            }
+            finalIndustry = customIndustry;
+        }
+        
         const user = {
             firstName,
             email,
-            prospectJobTitle,
-            prospectIndustry,
+            prospectJobTitle: finalJobTitle,
+            prospectIndustry: finalIndustry,
             targetMarket,
             customBehavior,
             startTime: new Date().toISOString(),

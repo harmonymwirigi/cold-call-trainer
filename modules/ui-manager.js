@@ -53,8 +53,12 @@ export class UIManager {
     }
     
     createProspectJobTitleDropdown() {
-        const jobTitleContainer = document.querySelector('.form-group:has(#jobTitle)');
-        if (!jobTitleContainer) return;
+        // Find the job title form group and select element
+        const jobTitleSelect = document.getElementById('jobTitle');
+        if (!jobTitleSelect) {
+            console.warn('⚠️ Job title select element not found');
+            return;
+        }
         
         const jobTitles = [
             'Brand/Communications Manager',
@@ -83,41 +87,53 @@ export class UIManager {
             'VP of Sales'
         ];
         
+        // Update the select element ID and attributes
+        jobTitleSelect.id = 'prospectJobTitle';
+        
         // Update label
-        const label = jobTitleContainer.querySelector('label');
-        if (label) {
+        const label = jobTitleSelect.previousElementSibling;
+        if (label && label.tagName === 'LABEL') {
             label.textContent = 'Prospect Job Title:';
+            label.setAttribute('for', 'prospectJobTitle');
         }
         
-        // Update select element
-        const select = document.getElementById('jobTitle');
-        if (select) {
-            select.id = 'prospectJobTitle';
-            select.innerHTML = '<option value="">Select prospect job title</option>';
-            
-            jobTitles.forEach(title => {
-                const option = document.createElement('option');
-                option.value = title.toLowerCase().replace(/[^a-z0-9]/g, '_');
-                option.textContent = title;
-                select.appendChild(option);
-            });
-            
-            // Add "Other" option
-            const otherOption = document.createElement('option');
-            otherOption.value = 'other';
-            otherOption.textContent = 'Other (Please specify)';
-            select.appendChild(otherOption);
-            
-            // Add event listener for "Other" selection
-            select.addEventListener('change', (e) => {
-                this.handleJobTitleChange(e.target.value);
-            });
-        }
+        // Clear existing options and add new ones
+        jobTitleSelect.innerHTML = '<option value="">Select prospect job title</option>';
+        
+        // Add all job title options in alphabetical order
+        jobTitles.sort().forEach(title => {
+            const option = document.createElement('option');
+            option.value = title.toLowerCase().replace(/[^a-z0-9]/g, '_');
+            option.textContent = title;
+            jobTitleSelect.appendChild(option);
+        });
+        
+        // Add "Other" option
+        const otherOption = document.createElement('option');
+        otherOption.value = 'other';
+        otherOption.textContent = 'Other (Please specify)';
+        jobTitleSelect.appendChild(otherOption);
+        
+        // Add event listener for "Other" selection
+        jobTitleSelect.addEventListener('change', (e) => {
+            this.handleJobTitleChange(e.target.value);
+        });
+        
+        console.log('✅ Prospect job title dropdown populated with', jobTitles.length, 'options');
     }
     
     createProspectIndustryDropdown() {
-        const jobTitleContainer = document.querySelector('.form-group:has(#prospectJobTitle)');
-        if (!jobTitleContainer) return;
+        const jobTitleSelect = document.getElementById('prospectJobTitle');
+        if (!jobTitleSelect) {
+            console.warn('⚠️ Job title select not found, cannot create industry dropdown');
+            return;
+        }
+        
+        const jobTitleContainer = jobTitleSelect.closest('.form-group');
+        if (!jobTitleContainer) {
+            console.warn('⚠️ Job title container not found');
+            return;
+        }
         
         const industries = [
             'Education & e-Learning',
@@ -155,8 +171,8 @@ export class UIManager {
         defaultOption.textContent = 'Select prospect industry';
         industrySelect.appendChild(defaultOption);
         
-        // Add industry options
-        industries.forEach(industry => {
+        // Add industry options in alphabetical order
+        industries.sort().forEach(industry => {
             const option = document.createElement('option');
             option.value = industry.toLowerCase().replace(/[^a-z0-9]/g, '_');
             option.textContent = industry;
@@ -179,52 +195,68 @@ export class UIManager {
         
         // Insert after job title group
         jobTitleContainer.insertAdjacentElement('afterend', industryGroup);
+        
+        console.log('✅ Prospect industry dropdown created with', industries.length, 'options');
     }
     
     addCustomBehaviorField() {
-        const industryContainer = document.querySelector('.form-group:has(#prospectIndustry)');
-        if (!industryContainer) return;
-        
-        const customGroup = document.createElement('div');
-        customGroup.className = 'form-group';
-        
-        const customLabel = document.createElement('label');
-        customLabel.setAttribute('for', 'customBehavior');
-        customLabel.textContent = 'Additional AI Behavior (Optional):';
-        
-        const customTextarea = document.createElement('textarea');
-        customTextarea.id = 'customBehavior';
-        customTextarea.placeholder = 'e.g., "Act more skeptical", "Be very busy", "Show interest in cost savings"...';
-        customTextarea.rows = 3;
-        customTextarea.style.cssText = `
-            width: 100%;
-            padding: 15px;
-            border: 2px solid #e2e8f0;
-            border-radius: 12px;
-            font-size: 1rem;
-            font-family: inherit;
-            background: #f8f9fa;
-            resize: vertical;
-            min-height: 80px;
-        `;
-        
-        customTextarea.addEventListener('focus', () => {
-            customTextarea.style.borderColor = '#667eea';
-            customTextarea.style.background = 'white';
-            customTextarea.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
-        });
-        
-        customTextarea.addEventListener('blur', () => {
-            customTextarea.style.borderColor = '#e2e8f0';
-            customTextarea.style.background = '#f8f9fa';
-            customTextarea.style.boxShadow = 'none';
-        });
-        
-        customGroup.appendChild(customLabel);
-        customGroup.appendChild(customTextarea);
-        
-        // Insert after industry group
-        industryContainer.insertAdjacentElement('afterend', customGroup);
+        // Wait for industry dropdown to be created first
+        setTimeout(() => {
+            const industrySelect = document.getElementById('prospectIndustry');
+            if (!industrySelect) {
+                console.warn('⚠️ Industry select not found, cannot create custom behavior field');
+                return;
+            }
+            
+            const industryContainer = industrySelect.closest('.form-group');
+            if (!industryContainer) {
+                console.warn('⚠️ Industry container not found');
+                return;
+            }
+            
+            const customGroup = document.createElement('div');
+            customGroup.className = 'form-group';
+            
+            const customLabel = document.createElement('label');
+            customLabel.setAttribute('for', 'customBehavior');
+            customLabel.textContent = 'Additional AI Behavior (Optional):';
+            
+            const customTextarea = document.createElement('textarea');
+            customTextarea.id = 'customBehavior';
+            customTextarea.placeholder = 'e.g., "Act more skeptical", "Be very busy", "Show interest in cost savings"...';
+            customTextarea.rows = 3;
+            customTextarea.style.cssText = `
+                width: 100%;
+                padding: 15px;
+                border: 2px solid #e2e8f0;
+                border-radius: 12px;
+                font-size: 1rem;
+                font-family: inherit;
+                background: #f8f9fa;
+                resize: vertical;
+                min-height: 80px;
+            `;
+            
+            customTextarea.addEventListener('focus', () => {
+                customTextarea.style.borderColor = '#667eea';
+                customTextarea.style.background = 'white';
+                customTextarea.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
+            });
+            
+            customTextarea.addEventListener('blur', () => {
+                customTextarea.style.borderColor = '#e2e8f0';
+                customTextarea.style.background = '#f8f9fa';
+                customTextarea.style.boxShadow = 'none';
+            });
+            
+            customGroup.appendChild(customLabel);
+            customGroup.appendChild(customTextarea);
+            
+            // Insert after industry group
+            industryContainer.insertAdjacentElement('afterend', customGroup);
+            
+            console.log('✅ Custom behavior field created');
+        }, 100); // Small delay to ensure industry dropdown exists
     }
     
     handleJobTitleChange(value) {
