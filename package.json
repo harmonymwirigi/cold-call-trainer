@@ -3,9 +3,10 @@
   "version": "2.0.0",
   "description": "AI-powered cold call training platform with module gating, phone interface, and realistic voice synthesis",
   "main": "index.html",
+  "type": "module",
   "scripts": {
     "dev": "vercel dev",
-    "build": "mkdir -p public && cp index.html styles.css app.js public/",
+    "build": "mkdir -p public/modules && cp index.html styles.css app.js public/ && cp *-manager.js public/modules/",
     "deploy": "vercel --prod",
     "start": "vercel dev",
     "test": "echo 'Tests not implemented yet'",
