@@ -8,7 +8,7 @@ import { ModuleManager } from './modules/modulemanager.js';
 import { CallManager } from './modules/callmanager.js';
 import { SpeechManager } from './modules/speechmanager.js';
 import { CharacterManager } from './modules/charactermanager.js';
-import { UIManager } from './modules/uimanager.js';
+import { UIManager } from './api/uimanager.js';
 import { ProgressManager } from './modules/progressmanager.js';
 import { AudioManager } from './modules/audiomanager.js';
 
