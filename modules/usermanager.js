@@ -1,20 +1,35 @@
 /**
- * User Manager - Handles user registration, authentication, and access levels
- * Phase 2 Update: Added email verification system
+ * User Manager - Enhanced with Supabase and Resend Integration
+ * Phase 3: Complete email verification system with database backend
  */
 
 export class UserManager {
     constructor(app) {
         this.app = app;
+        
+        // Enhanced Access Levels
         this.accessLevels = {
-            UNLIMITED: 'unlimited',
-            UNLIMITED_LOCKED: 'unlimited_locked', 
-            LIMITED: 'limited'
+            UNLIMITED: 'unlimited',           // All roleplays unlocked (50 hours/month)
+            UNLIMITED_LOCKED: 'unlimited_locked', // Only roleplay 1 unlocked, others 24hr unlock (50 hours/month)
+            LIMITED: 'limited'               // 3 hours or 7 days lifetime, roleplay 1 only (permanent unlocks)
         };
+        
+        // Usage tracking
         this.usageTracking = {
             sessionTime: 0,
             totalUsage: 0,
-            lastReset: null
+            monthlyUsage: 0,
+            lastReset: null,
+            accessLevel: null
+        };
+
+        // Verification state
+        this.verificationState = {
+            email: null,
+            pendingUser: null,
+            attemptsLeft: 5,
+            expiresAt: null,
+            canResend: true
         };
     }
     
@@ -66,41 +81,61 @@ export class UserManager {
             targetMarket,
             customBehavior,
             startTime: new Date().toISOString(),
-            accessLevel: this.determineAccessLevel(email),
-            emailVerified: false
+            
+            // Analytics data
+            userAgent: navigator.userAgent,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            language: navigator.language,
+            screenResolution: `${screen.width}x${screen.height}`,
+            referrer: document.referrer,
+            utmSource: this.getUrlParameter('utm_source'),
+            utmMedium: this.getUrlParameter('utm_medium'),
+            utmCampaign: this.getUrlParameter('utm_campaign'),
+            sessionId: this.generateSessionId(),
+            fingerprintId: this.generateFingerprint(),
+            timeToRegister: Date.now() - performance.timing.navigationStart
         };
         
-        // Start email verification process
-        this.sendEmailVerification(email, firstName, user);
+        // Send email verification via API
+        this.sendEmailVerification(user);
     }
     
-    async sendEmailVerification(email, firstName, pendingUser) {
-        // Generate verification code
-        const verificationCode = Math.floor(100000 + Math.random() * 900000);
-        
+    async sendEmailVerification(user) {
         try {
-            // Store verification code and user data temporarily
-            sessionStorage.setItem('verificationCode', verificationCode.toString());
-            sessionStorage.setItem('pendingUser', JSON.stringify(pendingUser));
-            sessionStorage.setItem('verificationEmail', email);
+            this.app.uiManager.showNotification('Sending verification email...', 'info');
             
-            // In production, send actual email here
-            console.log(`📧 Verification code for ${email}: ${verificationCode}`);
+            const response = await fetch('/api/send-verification', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(user)
+            });
             
-            // For demo purposes, show the code in console and alert
-            alert(`Demo Mode: Your verification code is ${verificationCode}\n\nIn production, this would be sent to your email.`);
+            const data = await response.json();
             
-            // Show verification form
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to send verification email');
+            }
+            
+            // Store verification state
+            this.verificationState = {
+                email: user.email,
+                pendingUser: user,
+                attemptsLeft: 5,
+                expiresAt: data.expiresAt,
+                canResend: false
+            };
+            
+            this.app.uiManager.showSuccess('Verification email sent! Check your inbox.');
             this.showVerificationForm();
             
-            // Store lead data immediately (before verification)
-            this.captureLeadData(pendingUser);
+            // Start resend cooldown
+            this.startResendCooldown();
             
-            return true;
         } catch (error) {
-            console.error('Failed to send verification email:', error);
-            this.app.uiManager.showError('Failed to send verification email. Please try again.');
-            return false;
+            console.error('Send verification error:', error);
+            this.app.uiManager.showError(error.message || 'Failed to send verification email. Please try again.');
         }
     }
     
@@ -114,28 +149,44 @@ export class UserManager {
             existingForm.remove();
         }
         
-        // Create verification form
+        // Create enhanced verification form
         const verificationHTML = `
-            <div id="verificationForm" class="user-form">
-                <h3>✉️ Verify Your Email</h3>
-                <p>We've sent a 6-digit verification code to your email address.</p>
+            <div id="verificationForm" class="user-form verification-form">
+                <div class="verification-header">
+                    <div class="verification-icon">📧</div>
+                    <h3>Verify Your Email</h3>
+                    <p>We've sent a 6-digit verification code to <strong>${this.verificationState.email}</strong></p>
+                    <div class="verification-timer" id="verificationTimer">
+                        <span id="timerDisplay">Code expires in 10:00</span>
+                    </div>
+                </div>
                 <div class="form-group">
                     <label for="verificationCode">Verification Code:</label>
                     <input type="text" id="verificationCode" placeholder="Enter 6-digit code" maxlength="6" required 
-                           style="text-align: center; font-size: 1.2rem; letter-spacing: 0.2rem;">
+                           style="text-align: center; font-size: 1.4rem; letter-spacing: 0.3rem; font-weight: 600;">
+                    <div class="verification-status" id="verificationStatus"></div>
+                    <div class="attempts-left" id="attemptsLeft">
+                        <span id="attemptsCount">${this.verificationState.attemptsLeft}</span> attempts remaining
+                    </div>
                 </div>
                 <div class="form-actions">
                     <button class="btn btn-secondary" onclick="showRegistrationForm()">← Back</button>
-                    <button class="btn btn-primary" onclick="verifyEmailCode()">Verify & Continue</button>
+                    <button class="btn btn-primary" id="verifyBtn" onclick="verifyEmailCode()">Verify & Continue</button>
                 </div>
-                <p style="text-align: center; margin-top: 15px; color: #6c757d;">
-                    Didn't receive the code? <a href="#" onclick="resendVerificationCode()" style="color: #667eea;">Resend Code</a>
-                </p>
+                <div class="verification-footer">
+                    <p>Didn't receive the code? 
+                        <a href="#" onclick="resendVerificationCode()" id="resendLink" style="display: none;">Resend Code</a>
+                        <span id="resendCountdown">You can resend in <span id="resendTimer">60</span>s</span>
+                    </p>
+                </div>
             </div>
         `;
         
         // Insert after the original user form
         document.getElementById('userForm').insertAdjacentHTML('afterend', verificationHTML);
+        
+        // Start verification timer
+        this.startVerificationTimer();
         
         // Focus on verification input
         setTimeout(() => {
@@ -144,12 +195,112 @@ export class UserManager {
         
         // Auto-submit when 6 digits entered
         document.getElementById('verificationCode').addEventListener('input', (e) => {
-            if (e.target.value.length === 6) {
+            const value = e.target.value.replace(/\D/g, ''); // Only digits
+            e.target.value = value;
+            
+            if (value.length === 6) {
                 setTimeout(() => {
                     this.verifyEmailCode();
                 }, 500);
             }
+            
+            // Real-time validation feedback
+            if (value.length === 6) {
+                this.updateVerificationStatus('Checking code...', 'checking');
+            } else {
+                this.updateVerificationStatus('', '');
+            }
         });
+    }
+    
+    startVerificationTimer() {
+        if (!this.verificationState.expiresAt) return;
+        
+        const timer = setInterval(() => {
+            const now = new Date();
+            const expiresAt = new Date(this.verificationState.expiresAt);
+            const timeLeft = expiresAt - now;
+            
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                this.handleVerificationExpiry();
+                return;
+            }
+            
+            const minutes = Math.floor(timeLeft / 60000);
+            const seconds = Math.floor((timeLeft % 60000) / 1000);
+            
+            const timerDisplay = document.getElementById('timerDisplay');
+            if (timerDisplay) {
+                timerDisplay.textContent = `Code expires in ${minutes}:${seconds.toString().padStart(2, '0')}`;
+                
+                // Warning colors
+                if (timeLeft < 120000) { // Less than 2 minutes
+                    timerDisplay.style.color = '#ff6b6b';
+                } else if (timeLeft < 300000) { // Less than 5 minutes
+                    timerDisplay.style.color = '#ffa726';
+                }
+            }
+        }, 1000);
+    }
+    
+    startResendCooldown() {
+        let countdown = 60;
+        const resendLink = document.getElementById('resendLink');
+        const resendCountdown = document.getElementById('resendCountdown');
+        const resendTimer = document.getElementById('resendTimer');
+        
+        this.verificationState.canResend = false;
+        
+        const timer = setInterval(() => {
+            countdown--;
+            if (resendTimer) resendTimer.textContent = countdown;
+            
+            if (countdown <= 0) {
+                clearInterval(timer);
+                this.verificationState.canResend = true;
+                if (resendLink) resendLink.style.display = 'inline';
+                if (resendCountdown) resendCountdown.style.display = 'none';
+            }
+        }, 1000);
+    }
+    
+    updateVerificationStatus(message, type) {
+        const status = document.getElementById('verificationStatus');
+        if (!status) return;
+        
+        status.textContent = message;
+        status.className = `verification-status ${type}`;
+    }
+    
+    updateAttemptsLeft() {
+        const attemptsCount = document.getElementById('attemptsCount');
+        if (attemptsCount) {
+            attemptsCount.textContent = this.verificationState.attemptsLeft;
+            
+            if (this.verificationState.attemptsLeft <= 2) {
+                attemptsCount.style.color = '#ff6b6b';
+            }
+        }
+    }
+    
+    handleVerificationExpiry() {
+        this.updateVerificationStatus('Verification code expired. Please request a new one.', 'error');
+        
+        const verifyBtn = document.getElementById('verifyBtn');
+        const codeInput = document.getElementById('verificationCode');
+        
+        if (verifyBtn) verifyBtn.disabled = true;
+        if (codeInput) codeInput.disabled = true;
+        
+        // Auto-show resend option
+        const resendLink = document.getElementById('resendLink');
+        const resendCountdown = document.getElementById('resendCountdown');
+        
+        if (resendLink) resendLink.style.display = 'inline';
+        if (resendCountdown) resendCountdown.style.display = 'none';
+        
+        this.verificationState.canResend = true;
     }
     
     showRegistrationForm() {
@@ -163,83 +314,167 @@ export class UserManager {
         }
     }
     
-    verifyEmailCode() {
+    async verifyEmailCode() {
         const enteredCode = document.getElementById('verificationCode').value.trim();
-        const storedCode = sessionStorage.getItem('verificationCode');
-        const pendingUser = JSON.parse(sessionStorage.getItem('pendingUser') || '{}');
         
         if (!enteredCode) {
-            this.app.uiManager.showError('Please enter the verification code.');
+            this.updateVerificationStatus('Please enter the verification code.', 'error');
             return;
         }
         
-        if (enteredCode === storedCode) {
-            // Clean up verification data
-            sessionStorage.removeItem('verificationCode');
-            sessionStorage.removeItem('pendingUser');
-            sessionStorage.removeItem('verificationEmail');
+        if (enteredCode.length !== 6) {
+            this.updateVerificationStatus('Verification code must be 6 digits.', 'error');
+            return;
+        }
+        
+        if (this.verificationState.attemptsLeft <= 0) {
+            this.updateVerificationStatus('Maximum attempts exceeded. Please request a new code.', 'error');
+            return;
+        }
+        
+        try {
+            this.updateVerificationStatus('Verifying code...', 'checking');
             
-            // Complete registration
-            const user = {
-                ...pendingUser,
-                emailVerified: true
+            const verificationData = {
+                email: this.verificationState.email,
+                verificationCode: enteredCode,
+                ...this.verificationState.pendingUser
             };
             
-            this.completeRegistration(user);
+            const response = await fetch('/api/verify-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(verificationData)
+            });
             
-            // Remove verification form
-            const verificationForm = document.getElementById('verificationForm');
-            if (verificationForm) {
-                verificationForm.remove();
+            const data = await response.json();
+            
+            if (!response.ok) {
+                this.verificationState.attemptsLeft--;
+                this.updateAttemptsLeft();
+                
+                if (this.verificationState.attemptsLeft <= 0) {
+                    this.updateVerificationStatus('Maximum attempts exceeded. Please request a new code.', 'error');
+                    const verifyBtn = document.getElementById('verifyBtn');
+                    if (verifyBtn) verifyBtn.disabled = true;
+                } else {
+                    this.updateVerificationStatus(data.message || 'Invalid verification code. Please try again.', 'error');
+                }
+                
+                // Clear the input and focus
+                const codeInput = document.getElementById('verificationCode');
+                codeInput.value = '';
+                codeInput.focus();
+                
+                // Add shake animation
+                codeInput.style.animation = 'shake 0.5s ease-in-out';
+                setTimeout(() => {
+                    codeInput.style.animation = '';
+                }, 500);
+                
+                return;
             }
             
-        } else {
-            this.app.uiManager.showError('Invalid verification code. Please try again.');
+            this.updateVerificationStatus('✓ Code verified successfully!', 'success');
             
-            // Clear the input and focus
-            const codeInput = document.getElementById('verificationCode');
-            codeInput.value = '';
-            codeInput.focus();
+            // Complete registration
+            setTimeout(() => {
+                this.completeRegistration(data.user, data.isNewUser);
+                
+                // Remove verification form
+                const verificationForm = document.getElementById('verificationForm');
+                if (verificationForm) {
+                    verificationForm.remove();
+                }
+            }, 1000);
+            
+        } catch (error) {
+            console.error('Verification error:', error);
+            this.updateVerificationStatus('Network error. Please try again.', 'error');
         }
     }
     
-    resendVerificationCode() {
-        const email = sessionStorage.getItem('verificationEmail');
-        const pendingUser = JSON.parse(sessionStorage.getItem('pendingUser') || '{}');
+    async resendVerificationCode() {
+        if (!this.verificationState.canResend) {
+            this.app.uiManager.showWarning('Please wait before requesting a new code.');
+            return;
+        }
         
-        if (!email || !pendingUser.firstName) {
+        if (!this.verificationState.email) {
             this.app.uiManager.showError('Session expired. Please start registration again.');
             this.showRegistrationForm();
             return;
         }
         
-        // Generate new code
-        const verificationCode = Math.floor(100000 + Math.random() * 900000);
-        sessionStorage.setItem('verificationCode', verificationCode.toString());
-        
-        // In production, send actual email here
-        console.log(`📧 New verification code for ${email}: ${verificationCode}`);
-        alert(`Demo Mode: Your new verification code is ${verificationCode}`);
-        
-        this.app.uiManager.showSuccess('New verification code sent!');
-        
-        // Clear and focus input
-        const codeInput = document.getElementById('verificationCode');
-        if (codeInput) {
-            codeInput.value = '';
-            codeInput.focus();
+        try {
+            this.app.uiManager.showNotification('Sending new verification code...', 'info');
+            
+            const response = await fetch('/api/resend-verification', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email: this.verificationState.email
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                if (response.status === 429) {
+                    this.app.uiManager.showWarning(`Please wait ${data.retryAfter} seconds before requesting a new code.`);
+                } else {
+                    throw new Error(data.message || 'Failed to resend verification code');
+                }
+                return;
+            }
+            
+            // Reset verification state
+            this.verificationState.attemptsLeft = 5;
+            this.verificationState.expiresAt = data.expiresAt;
+            
+            this.updateVerificationStatus('New code sent successfully!', 'success');
+            this.updateAttemptsLeft();
+            
+            // Reset form state
+            const verifyBtn = document.getElementById('verifyBtn');
+            const codeInput = document.getElementById('verificationCode');
+            
+            if (verifyBtn) verifyBtn.disabled = false;
+            if (codeInput) {
+                codeInput.disabled = false;
+                codeInput.value = '';
+                codeInput.focus();
+            }
+            
+            // Restart timers
+            this.startVerificationTimer();
+            this.startResendCooldown();
+            
+            this.app.uiManager.showSuccess('New verification code sent!');
+            
+        } catch (error) {
+            console.error('Resend verification error:', error);
+            this.app.uiManager.showError(error.message || 'Failed to resend verification code. Please try again.');
         }
     }
     
-    completeRegistration(user) {
+    completeRegistration(user, isNewUser) {
         this.app.setCurrentUser(user);
-        this.app.logActivity('user_registered', { user });
+        this.app.logActivity('user_registered', { user, isNewUser });
         
         // Initialize usage tracking
         this.initializeUsageTracking(user);
         
         // Show success message
-        this.app.uiManager.showSuccess(`Welcome ${user.firstName}! Your email has been verified.`);
+        const welcomeMessage = isNewUser 
+            ? `Welcome ${user.firstName}! Your account has been created and verified.`
+            : `Welcome back ${user.firstName}! Your email has been verified.`;
+            
+        this.app.uiManager.showSuccess(welcomeMessage);
         
         // Show dashboard
         setTimeout(() => {
@@ -247,80 +482,16 @@ export class UserManager {
         }, 1500);
     }
     
-    async captureLeadData(user) {
-        try {
-            // Enhanced lead data with verification status
-            const leadData = {
-                firstName: user.firstName,
-                email: user.email,
-                prospectJobTitle: user.prospectJobTitle,
-                prospectIndustry: user.prospectIndustry,
-                targetMarket: user.targetMarket,
-                customBehavior: user.customBehavior,
-                timestamp: user.startTime,
-                source: 'cold-call-trainer',
-                emailVerified: user.emailVerified || false,
-                accessLevel: user.accessLevel,
-                userAgent: navigator.userAgent,
-                referrer: document.referrer
-            };
-            
-            console.log('📧 Enhanced lead captured:', leadData);
-            
-            // Store locally
-            const leads = JSON.parse(localStorage.getItem('capturedLeads') || '[]');
-            leads.push(leadData);
-            localStorage.setItem('capturedLeads', JSON.stringify(leads));
-            
-            // In production, send to backend/CRM
-            // await this.sendToBackend(leadData);
-            
-        } catch (error) {
-            console.error('Failed to capture lead data:', error);
-        }
-    }
-    
-    // Production method for sending to backend
-    async sendToBackend(leadData) {
-        try {
-            const response = await fetch('/api/capture-lead', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(leadData)
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            console.log('✅ Lead sent to backend successfully');
-        } catch (error) {
-            console.error('❌ Failed to send lead to backend:', error);
-        }
-    }
-    
-    determineAccessLevel(email) {
-        // Enhanced access level logic
-        // For demo purposes, all users get unlimited access
-        return this.accessLevels.UNLIMITED;
-        
-        // Production logic examples:
-        // if (email.includes('premium') || email.includes('pro')) return this.accessLevels.UNLIMITED;
-        // if (email.includes('trial')) return this.accessLevels.UNLIMITED_LOCKED;
-        // return this.accessLevels.LIMITED;
-    }
-    
     initializeUsageTracking(user) {
         this.usageTracking = {
             sessionTime: 0,
-            totalUsage: this.loadUserUsage(user.email),
-            lastReset: this.getLastResetDate(user.email),
+            totalUsage: 0,
+            monthlyUsage: 0,
+            lastReset: new Date().toISOString(),
             accessLevel: user.accessLevel
         };
         
-        // Start session timer
+        // Start session tracking
         this.startSessionTimer();
     }
     
@@ -330,7 +501,7 @@ export class UserManager {
         // Update usage every minute
         this.usageTimer = setInterval(() => {
             this.updateUsage();
-        }, 60000); // 1 minute
+        }, 60000);
     }
     
     updateUsage() {
@@ -340,21 +511,18 @@ export class UserManager {
         const sessionDuration = currentTime - this.sessionStartTime;
         
         this.usageTracking.sessionTime = sessionDuration;
-        this.usageTracking.totalUsage += sessionDuration;
         
         // Check usage limits
         this.checkUsageLimits();
-        
-        // Save usage
-        this.saveUserUsage();
     }
     
     checkUsageLimits() {
         const user = this.app.getCurrentUser();
         if (!user) return;
         
-        const hourlyUsage = this.usageTracking.totalUsage / (1000 * 60 * 60);
+        const hourlyUsage = this.usageTracking.sessionTime / (1000 * 60 * 60);
         
+        // Check limits based on access level
         switch (user.accessLevel) {
             case this.accessLevels.UNLIMITED:
             case this.accessLevels.UNLIMITED_LOCKED:
@@ -378,7 +546,6 @@ export class UserManager {
             
         this.app.uiManager.showError(message);
         
-        // Disable access to locked modules
         if (this.app.isInCall()) {
             this.app.callManager.endCall();
         }
@@ -389,7 +556,7 @@ export class UserManager {
         if (!user) return false;
         
         // Check usage limits first
-        const hourlyUsage = this.usageTracking.totalUsage / (1000 * 60 * 60);
+        const hourlyUsage = this.usageTracking.sessionTime / (1000 * 60 * 60);
         
         switch (user.accessLevel) {
             case this.accessLevels.UNLIMITED:
@@ -397,12 +564,10 @@ export class UserManager {
                 
             case this.accessLevels.UNLIMITED_LOCKED:
                 if (hourlyUsage >= 50) return false;
-                // Only opener module or temporarily unlocked modules
                 return moduleId === 'opener' || this.isTemporarilyUnlocked(moduleId);
                 
             case this.accessLevels.LIMITED:
                 if (hourlyUsage >= 3) return false;
-                // Only opener module, permanent unlocks
                 return moduleId === 'opener' || this.isPermanentlyUnlocked(moduleId);
                 
             default:
@@ -411,84 +576,45 @@ export class UserManager {
     }
     
     isTemporarilyUnlocked(moduleId) {
-        const unlockData = JSON.parse(localStorage.getItem('temporaryUnlocks') || '{}');
-        const unlock = unlockData[moduleId];
-        
-        if (!unlock) return false;
-        
-        const unlockTime = new Date(unlock.unlockedAt);
-        const now = new Date();
-        const hoursElapsed = (now - unlockTime) / (1000 * 60 * 60);
-        
-        return hoursElapsed < 24; // 24-hour unlock
+        // This would be implemented with Supabase data
+        // For now, return false
+        return false;
     }
     
     isPermanentlyUnlocked(moduleId) {
-        const user = this.app.getCurrentUser();
-        if (!user) return false;
-        
-        const unlockedModules = JSON.parse(localStorage.getItem(`permanentUnlocks_${user.email}`) || '[]');
-        return unlockedModules.includes(moduleId);
+        // This would be implemented with Supabase data
+        // For now, return false
+        return false;
     }
     
-    unlockModuleTemporarily(moduleId) {
-        const unlockData = JSON.parse(localStorage.getItem('temporaryUnlocks') || '{}');
-        unlockData[moduleId] = {
-            unlockedAt: new Date().toISOString(),
-            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-        };
-        localStorage.setItem('temporaryUnlocks', JSON.stringify(unlockData));
-        
-        this.app.logActivity('module_unlocked_temporarily', { moduleId });
+    // Utility methods
+    generateSessionId() {
+        return 'sess_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
     }
     
-    unlockModulePermanently(moduleId) {
-        const user = this.app.getCurrentUser();
-        if (!user) return;
+    generateFingerprint() {
+        const components = [
+            navigator.userAgent,
+            navigator.language,
+            screen.width + 'x' + screen.height,
+            new Date().getTimezoneOffset(),
+            navigator.hardwareConcurrency || 'unknown'
+        ];
         
-        const unlockedModules = JSON.parse(localStorage.getItem(`permanentUnlocks_${user.email}`) || '[]');
-        if (!unlockedModules.includes(moduleId)) {
-            unlockedModules.push(moduleId);
-            localStorage.setItem(`permanentUnlocks_${user.email}`, JSON.stringify(unlockedModules));
+        let hash = 0;
+        const str = components.join('|');
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
         }
         
-        this.app.logActivity('module_unlocked_permanently', { moduleId });
+        return 'fp_' + Math.abs(hash).toString(36);
     }
     
-    loadUserUsage(email) {
-        try {
-            const usageData = JSON.parse(localStorage.getItem(`usage_${email}`) || '{}');
-            return usageData.totalUsage || 0;
-        } catch (error) {
-            console.error('Failed to load user usage:', error);
-            return 0;
-        }
-    }
-    
-    saveUserUsage() {
-        const user = this.app.getCurrentUser();
-        if (!user) return;
-        
-        try {
-            const usageData = {
-                totalUsage: this.usageTracking.totalUsage,
-                lastUpdated: new Date().toISOString(),
-                accessLevel: user.accessLevel
-            };
-            
-            localStorage.setItem(`usage_${user.email}`, JSON.stringify(usageData));
-        } catch (error) {
-            console.error('Failed to save user usage:', error);
-        }
-    }
-    
-    getLastResetDate(email) {
-        try {
-            const usageData = JSON.parse(localStorage.getItem(`usage_${email}`) || '{}');
-            return usageData.lastReset || new Date().toISOString();
-        } catch (error) {
-            return new Date().toISOString();
-        }
+    getUrlParameter(param) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(param) || '';
     }
     
     validateEmail(email) {

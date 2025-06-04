@@ -1,6 +1,6 @@
 /**
  * Cold Call Roleplay Trainer - Core Application Class
- * Main application orchestrator and state management
+ * Updated with Supabase and Resend integration
  */
 
 import { UserManager } from './modules/usermanager.js';
@@ -71,6 +71,9 @@ class ColdCallTrainer {
                 e.preventDefault();
                 e.returnValue = 'You have an active call. Are you sure you want to leave?';
             }
+            
+            // Cleanup on page unload
+            this.userManager.cleanup();
         });
         
         // Visibility change
@@ -96,7 +99,7 @@ class ColdCallTrainer {
     }
     
     handleKeyboardShortcuts(e) {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
         
         switch (e.code) {
             case 'Space':
@@ -112,12 +115,31 @@ class ColdCallTrainer {
                     this.uiManager.showModuleDashboard();
                 }
                 break;
+            case 'Enter':
+                // Enter key shortcuts for verification form
+                if (document.getElementById('verificationForm')) {
+                    e.preventDefault();
+                    this.verifyEmailCode();
+                }
+                break;
         }
     }
     
     // Public API methods for global functions
     startTraining() {
         return this.userManager.startTraining();
+    }
+    
+    verifyEmailCode() {
+        return this.userManager.verifyEmailCode();
+    }
+    
+    resendVerificationCode() {
+        return this.userManager.resendVerificationCode();
+    }
+    
+    showRegistrationForm() {
+        return this.userManager.showRegistrationForm();
     }
     
     startModule(moduleId, mode) {
@@ -206,18 +228,21 @@ class ColdCallTrainer {
         this.callStartTime = time;
     }
     
-    // Utility methods
+    // Enhanced activity logging
     logActivity(action, data = {}) {
         const logEntry = {
             timestamp: new Date().toISOString(),
             action,
             user: this.currentUser?.firstName || 'Anonymous',
+            userId: this.currentUser?.id || null,
+            sessionId: this.userManager?.verificationState?.pendingUser?.sessionId || null,
             ...data
         };
         
         console.log('📊 Activity:', logEntry);
         
         try {
+            // Store locally
             const logs = JSON.parse(localStorage.getItem('coldCallLogs') || '[]');
             logs.push(logEntry);
             
@@ -227,8 +252,44 @@ class ColdCallTrainer {
             }
             
             localStorage.setItem('coldCallLogs', JSON.stringify(logs));
+            
+            // TODO: Send to Supabase activity_logs table
+            this.sendActivityToDatabase(logEntry);
+            
         } catch (error) {
             console.error('Failed to log activity:', error);
+        }
+    }
+    
+    async sendActivityToDatabase(logEntry) {
+        // Only send if user is logged in
+        if (!this.currentUser?.id) return;
+        
+        try {
+            // This would be implemented with a Supabase API call
+            // For now, we'll just log it
+            console.log('📊 Would send to database:', logEntry);
+        } catch (error) {
+            console.error('Failed to send activity to database:', error);
+        }
+    }
+    
+    // Health check method
+    async checkSystemHealth() {
+        try {
+            const response = await fetch('/api/health');
+            const health = await response.json();
+            
+            console.log('🏥 System health:', health);
+            
+            if (health.status !== 'OK') {
+                this.uiManager.showWarning('Some features may not be available. Please refresh if you experience issues.');
+            }
+            
+            return health;
+        } catch (error) {
+            console.error('Health check failed:', error);
+            return { status: 'ERROR', error: error.message };
         }
     }
 }
@@ -236,21 +297,21 @@ class ColdCallTrainer {
 // Global app instance
 let app;
 
-        // Global Functions for HTML onclick handlers
+// Global Functions for HTML onclick handlers
 window.startTraining = function() {
     app?.startTraining();
 };
 
 window.verifyEmailCode = function() {
-    app?.userManager.verifyEmailCode();
+    app?.verifyEmailCode();
 };
 
 window.resendVerificationCode = function() {
-    app?.userManager.resendVerificationCode();
+    app?.resendVerificationCode();
 };
 
 window.showRegistrationForm = function() {
-    app?.userManager.showRegistrationForm();
+    app?.showRegistrationForm();
 };
 
 window.startModule = function(moduleId, mode) {
@@ -285,7 +346,7 @@ window.hideUnlockNotice = function() {
     app?.hideUnlockNotice();
 };
 
-// Debug functions
+// Enhanced debug functions
 window.debugModuleStates = function() {
     if (!app) {
         console.log('App not initialized yet');
@@ -310,6 +371,14 @@ window.resetAllProgress = function() {
     app.progressManager.resetAll();
 };
 
+window.checkSystemHealth = function() {
+    if (!app) {
+        console.log('App not initialized yet');
+        return;
+    }
+    return app.checkSystemHealth();
+};
+
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🎯 Cold Call Roleplay Trainer Loading...');
@@ -318,6 +387,15 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
         console.warn('⚠️ Speech recognition not supported');
         // Show compatibility notice
+        const notice = document.createElement('div');
+        notice.innerHTML = `
+            <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; margin: 20px; border-radius: 8px; color: #856404;">
+                <strong>⚠️ Speech Recognition Not Supported</strong><br>
+                Your browser doesn't support speech recognition. You can still use the app, but voice features won't work.
+                Please use Chrome, Edge, or Safari for the best experience.
+            </div>
+        `;
+        document.body.insertBefore(notice, document.body.firstChild);
     }
     
     // Initialize the main application
@@ -327,17 +405,46 @@ document.addEventListener('DOMContentLoaded', function() {
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     if (isMobile) {
         console.log('📱 Mobile device detected - applying optimizations');
-        // Apply mobile-specific optimizations
+        document.body.classList.add('mobile-device');
+        
+        // Add mobile-specific styles
+        const mobileStyles = document.createElement('style');
+        mobileStyles.textContent = `
+            .mobile-device .user-form {
+                padding: 15px;
+            }
+            .mobile-device input, .mobile-device select, .mobile-device textarea {
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+            .mobile-device .verification-form input[type="text"] {
+                font-size: 18px;
+            }
+        `;
+        document.head.appendChild(mobileStyles);
     }
+    
+    // Perform health check
+    setTimeout(() => {
+        app.checkSystemHealth();
+    }, 2000);
     
     console.log('✅ Cold Call Roleplay Trainer Loaded Successfully!');
 });
 
-// Error boundary
+// Enhanced error boundary
 window.addEventListener('error', function(event) {
     console.error('❌ Unhandled error:', event.error);
     if (app) {
         app.uiManager.showError('An unexpected error occurred. Please refresh if issues persist.');
+        
+        // Log error to activity system
+        app.logActivity('error_occurred', {
+            error: event.error?.message || 'Unknown error',
+            stack: event.error?.stack,
+            filename: event.filename,
+            lineno: event.lineno,
+            colno: event.colno
+        });
     }
 });
 
@@ -345,6 +452,12 @@ window.addEventListener('unhandledrejection', function(event) {
     console.error('❌ Unhandled promise rejection:', event.reason);
     if (app) {
         app.uiManager.showError('Connection or processing error. Please try again.');
+        
+        // Log promise rejection to activity system
+        app.logActivity('promise_rejection', {
+            reason: event.reason?.message || 'Unknown promise rejection',
+            stack: event.reason?.stack
+        });
     }
 });
 
