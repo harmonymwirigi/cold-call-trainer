@@ -1,5 +1,6 @@
 /**
- * Audio Manager - Handles all audio playback and phone sounds
+ * Audio Manager - Fixed Ring Tone Control and Phone Sounds
+ * Fix: Ring tone stops properly, better audio control
  */
 
 export class AudioManager {
@@ -11,6 +12,10 @@ export class AudioManager {
             hangup: null,
             currentSpeech: null
         };
+        
+        // CRITICAL FIX: Track active audio for better control
+        this.activeAudio = null;
+        this.ringInterval = null;
     }
     
     async init() {
@@ -21,7 +26,7 @@ export class AudioManager {
     initializePhoneSounds() {
         // Create audio elements for phone sounds
         this.audioElements.dial = this.createPhoneTone('dial', [350, 440], 0.5);
-        this.audioElements.ring = this.createPhoneTone('ring', [440, 480], 1.0, true);
+        this.audioElements.ring = this.createPhoneTone('ring', [440, 480], 1.0, false); // Changed to false for ring
         this.audioElements.hangup = this.createPhoneTone('hangup', [480, 620], 0.5);
     }
     
@@ -42,11 +47,11 @@ export class AudioManager {
     
     createWebAudioTone(frequencies, duration, loop = false) {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
-        const audioContext = new AudioContext();
         
         return {
             play: () => {
                 try {
+                    const audioContext = new AudioContext();
                     const oscillators = frequencies.map(freq => {
                         const oscillator = audioContext.createOscillator();
                         const gainNode = audioContext.createGain();
@@ -66,19 +71,22 @@ export class AudioManager {
                             oscillator.stop(audioContext.currentTime + duration);
                         }
                         
-                        return { oscillator, gainNode };
+                        return { oscillator, gainNode, audioContext };
                     });
                     
                     return {
                         stop: () => {
-                            oscillators.forEach(({ oscillator }) => {
+                            oscillators.forEach(({ oscillator, audioContext }) => {
                                 try {
                                     oscillator.stop();
+                                    audioContext.close();
                                 } catch (e) {
                                     // Oscillator might already be stopped
                                 }
                             });
-                        }
+                        },
+                        oscillators,
+                        audioContext
                     };
                 } catch (error) {
                     console.warn('Web Audio playback failed:', error);
@@ -158,29 +166,83 @@ export class AudioManager {
         this.stopAudio();
         if (this.audioElements.dial) {
             try {
-                this.audioElements.dial.play();
+                const audioResult = this.audioElements.dial.play();
+                this.activeAudio = audioResult;
+                console.log('🔊 Playing dial tone');
             } catch (error) {
                 console.warn('Failed to play dial tone:', error);
             }
         }
     }
     
+    // CRITICAL FIX: Improved ring tone with proper control
     playRingTone() {
         this.stopAudio();
-        if (this.audioElements.ring) {
+        console.log('🔊 Starting ring tone');
+        
+        // Clear any existing ring interval
+        if (this.ringInterval) {
+            clearInterval(this.ringInterval);
+        }
+        
+        let ringCount = 0;
+        const maxRings = 6; // Limit to 6 rings (about 24 seconds)
+        
+        const playRing = () => {
+            if (ringCount >= maxRings) {
+                console.log('🔊 Ring tone stopped - max rings reached');
+                this.stopRingTone();
+                return;
+            }
+            
             try {
-                this.audioElements.ring.play();
+                if (this.audioElements.ring) {
+                    const audioResult = this.audioElements.ring.play();
+                    this.activeAudio = audioResult;
+                    ringCount++;
+                    console.log(`🔊 Ring ${ringCount}/${maxRings}`);
+                }
             } catch (error) {
-                console.warn('Failed to play ring tone:', error);
+                console.warn('Failed to play ring:', error);
+                this.stopRingTone();
+            }
+        };
+        
+        // Play first ring immediately
+        playRing();
+        
+        // Set interval for subsequent rings (every 4 seconds)
+        this.ringInterval = setInterval(playRing, 4000);
+    }
+    
+    // CRITICAL FIX: Dedicated method to stop ring tone
+    stopRingTone() {
+        console.log('🔊 Stopping ring tone');
+        
+        if (this.ringInterval) {
+            clearInterval(this.ringInterval);
+            this.ringInterval = null;
+        }
+        
+        // Stop the active audio
+        if (this.activeAudio && typeof this.activeAudio.stop === 'function') {
+            try {
+                this.activeAudio.stop();
+            } catch (e) {
+                // Already stopped
             }
         }
+        
+        this.activeAudio = null;
     }
     
     playHangupTone() {
         this.stopAudio();
         if (this.audioElements.hangup) {
             try {
-                this.audioElements.hangup.play();
+                const audioResult = this.audioElements.hangup.play();
+                this.activeAudio = audioResult;
+                console.log('🔊 Playing hangup tone');
             } catch (error) {
                 console.warn('Failed to play hangup tone:', error);
             }
@@ -223,23 +285,44 @@ export class AudioManager {
         }
     }
     
+    // CRITICAL FIX: Enhanced stopAudio method
     stopAudio() {
+        console.log('🔊 Stopping all audio');
+        
+        // Stop ring tone specifically
+        this.stopRingTone();
+        
+        // Stop other audio elements
         Object.values(this.audioElements).forEach(audio => {
-            if (audio && typeof audio.pause === 'function') {
-                try {
-                    audio.pause();
-                    audio.currentTime = 0;
-                } catch (error) {
-                    console.warn('Failed to stop audio:', error);
-                }
-            } else if (audio && typeof audio.stop === 'function') {
-                try {
-                    audio.stop();
-                } catch (error) {
-                    console.warn('Failed to stop Web Audio:', error);
+            if (audio && audio !== this.audioElements.currentSpeech) { // Don't stop speech here
+                if (typeof audio.pause === 'function') {
+                    try {
+                        audio.pause();
+                        audio.currentTime = 0;
+                    } catch (error) {
+                        console.warn('Failed to stop audio:', error);
+                    }
+                } else if (typeof audio.stop === 'function') {
+                    try {
+                        audio.stop();
+                    } catch (error) {
+                        console.warn('Failed to stop Web Audio:', error);
+                    }
                 }
             }
         });
+        
+        // Stop active Web Audio
+        if (this.activeAudio) {
+            if (typeof this.activeAudio.stop === 'function') {
+                try {
+                    this.activeAudio.stop();
+                } catch (e) {
+                    // Already stopped
+                }
+            }
+            this.activeAudio = null;
+        }
     }
     
     setVolume(volume) {
@@ -394,6 +477,7 @@ export class AudioManager {
     // Cleanup and resource management
     cleanup() {
         this.stopAudio();
+        this.stopRingTone();
         
         // Clean up Web Audio resources
         if (this.audioContext) {
@@ -414,5 +498,7 @@ export class AudioManager {
             hangup: null,
             currentSpeech: null
         };
+        
+        this.activeAudio = null;
     }
 }

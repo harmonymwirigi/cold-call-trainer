@@ -1,4 +1,4 @@
-// api/verify-email.js - Verify email code and create user account
+// api/verify-email.js - Fixed Verify email code and create user account
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -52,6 +52,8 @@ export default async function handler(req, res) {
       utmCampaign
     } = req.body;
 
+    console.log('Verify email request:', { email, firstName, prospectJobTitle });
+
     // Validate required fields
     if (!email || !verificationCode) {
       res.status(400).json({ 
@@ -71,6 +73,7 @@ export default async function handler(req, res) {
       .single();
 
     if (verificationError || !verification) {
+      console.error('Verification lookup error:', verificationError);
       res.status(400).json({ 
         error: 'Invalid verification code',
         message: 'The verification code is incorrect or has expired' 
@@ -113,39 +116,60 @@ export default async function handler(req, res) {
     // Determine access level
     const accessLevel = determineAccessLevel(email);
 
-    // Check if user already exists
-    const { data: existingUser } = await supabase
+    // CRITICAL FIX: Check if user already exists more carefully
+    const { data: existingUser, error: existingUserError } = await supabase
       .from('users')
       .select('*')
       .eq('email', email)
-      .single();
+      .maybeSingle(); // Use maybeSingle instead of single to handle no results gracefully
+
+    console.log('Existing user check:', { existingUser, existingUserError });
 
     let user;
     
     if (existingUser) {
-      // Update existing user
+      console.log('Updating existing user:', existingUser.id);
+      
+      // CRITICAL FIX: More robust user update with better error handling
+      const updateData = {
+        email_verified: true,
+        last_login: now.toISOString(),
+        access_level: accessLevel
+      };
+
+      // Only update fields if they were provided and are different
+      if (firstName && firstName !== existingUser.first_name) {
+        updateData.first_name = firstName;
+      }
+      if (prospectJobTitle && prospectJobTitle !== existingUser.prospect_job_title) {
+        updateData.prospect_job_title = prospectJobTitle;
+      }
+      if (prospectIndustry && prospectIndustry !== existingUser.prospect_industry) {
+        updateData.prospect_industry = prospectIndustry;
+      }
+      if (targetMarket && targetMarket !== existingUser.target_market) {
+        updateData.target_market = targetMarket;
+      }
+      if (customBehavior !== undefined && customBehavior !== existingUser.custom_behavior) {
+        updateData.custom_behavior = customBehavior;
+      }
+
+      // Update analytics if provided
+      if (userAgent) updateData.user_agent = userAgent;
+      if (timezone) updateData.timezone = timezone;
+      if (language) updateData.language = language;
+      if (screenResolution) updateData.screen_resolution = screenResolution;
+      if (referrer) updateData.referrer = referrer;
+      if (utmSource) updateData.utm_source = utmSource;
+      if (utmMedium) updateData.utm_medium = utmMedium;
+      if (utmCampaign) updateData.utm_campaign = utmCampaign;
+
+      console.log('Update data:', updateData);
+
       const { data: updatedUser, error: updateError } = await supabase
         .from('users')
-        .update({
-          first_name: firstName || verification.first_name,
-          prospect_job_title: prospectJobTitle,
-          prospect_industry: prospectIndustry,
-          target_market: targetMarket,
-          custom_behavior: customBehavior,
-          email_verified: true,
-          last_login: now.toISOString(),
-          access_level: accessLevel,
-          
-          // Update analytics if provided
-          ...(userAgent && { user_agent: userAgent }),
-          ...(timezone && { timezone }),
-          ...(language && { language }),
-          ...(screenResolution && { screen_resolution: screenResolution }),
-          ...(referrer && { referrer }),
-          ...(utmSource && { utm_source: utmSource }),
-          ...(utmMedium && { utm_medium: utmMedium }),
-          ...(utmCampaign && { utm_campaign: utmCampaign })
-        })
+        .update(updateData)
+        .eq('id', existingUser.id)
         .select()
         .single();
 
@@ -153,38 +177,45 @@ export default async function handler(req, res) {
         console.error('User update error:', updateError);
         res.status(500).json({ 
           error: 'User update failed',
-          message: 'Failed to update user information' 
+          message: `Failed to update user information: ${updateError.message}`,
+          details: updateError
         });
         return;
       }
       
       user = updatedUser;
     } else {
-      // Create new user
+      console.log('Creating new user');
+      
+      // CRITICAL FIX: More robust user creation with better error handling
+      const newUserData = {
+        email,
+        first_name: firstName || verification.first_name,
+        prospect_job_title: prospectJobTitle,
+        prospect_industry: prospectIndustry,
+        target_market: targetMarket,
+        custom_behavior: customBehavior,
+        access_level: accessLevel,
+        email_verified: true,
+        last_login: now.toISOString(),
+        
+        // Analytics
+        registration_source: 'cold-call-trainer',
+        user_agent: userAgent,
+        timezone,
+        language,
+        screen_resolution: screenResolution,
+        referrer,
+        utm_source: utmSource,
+        utm_medium: utmMedium,
+        utm_campaign: utmCampaign
+      };
+
+      console.log('New user data:', newUserData);
+
       const { data: newUser, error: createError } = await supabase
         .from('users')
-        .insert([{
-          email,
-          first_name: firstName || verification.first_name,
-          prospect_job_title: prospectJobTitle,
-          prospect_industry: prospectIndustry,
-          target_market: targetMarket,
-          custom_behavior: customBehavior,
-          access_level: accessLevel,
-          email_verified: true,
-          last_login: now.toISOString(),
-          
-          // Analytics
-          registration_source: 'cold-call-trainer',
-          user_agent: userAgent,
-          timezone,
-          language,
-          screen_resolution: screenResolution,
-          referrer,
-          utm_source: utmSource,
-          utm_medium: utmMedium,
-          utm_campaign: utmCampaign
-        }])
+        .insert([newUserData])
         .select()
         .single();
 
@@ -192,40 +223,46 @@ export default async function handler(req, res) {
         console.error('User creation error:', createError);
         res.status(500).json({ 
           error: 'User creation failed',
-          message: 'Failed to create user account' 
+          message: `Failed to create user account: ${createError.message}`,
+          details: createError
         });
         return;
       }
       
       user = newUser;
 
-      // Initialize user progress and usage tracking
-      await Promise.all([
-        // Initialize usage tracking
-        supabase.from('usage_tracking').insert([{
-          user_id: user.id,
-          session_time: 0,
-          total_usage: 0,
-          monthly_usage: 0,
-          lifetime_usage: 0,
-          daily_usage: {},
-          weekly_usage: {},
-          session_count: 1
-        }]),
-        
-        // Initialize user progress
-        supabase.from('user_progress').insert([{
-          user_id: user.id,
-          module_progress: {
-            opener: { marathon: 0, practice: 0, legend: false, warmupScore: 0 },
-            pitch: { marathon: 0, practice: 0, legend: false, warmupScore: 0 },
-            warmup: { marathon: 0, practice: 0, legend: false, warmupScore: 0 },
-            fullcall: { marathon: 0, practice: 0, legend: false, warmupScore: 0 },
-            powerhour: { marathon: 0, practice: 0, legend: false, warmupScore: 0 }
-          },
-          total_practice_time: 0
-        }])
-      ]);
+      // CRITICAL FIX: Initialize user progress and usage tracking with error handling
+      try {
+        await Promise.all([
+          // Initialize usage tracking
+          supabase.from('usage_tracking').insert([{
+            user_id: user.id,
+            session_time: 0,
+            total_usage: 0,
+            monthly_usage: 0,
+            lifetime_usage: 0,
+            daily_usage: {},
+            weekly_usage: {},
+            session_count: 1
+          }]),
+          
+          // Initialize user progress
+          supabase.from('user_progress').insert([{
+            user_id: user.id,
+            module_progress: {
+              opener: { marathon: 0, practice: 0, legend: false, warmupScore: 0 },
+              pitch: { marathon: 0, practice: 0, legend: false, warmupScore: 0 },
+              warmup: { marathon: 0, practice: 0, legend: false, warmupScore: 0 },
+              fullcall: { marathon: 0, practice: 0, legend: false, warmupScore: 0 },
+              powerhour: { marathon: 0, practice: 0, legend: false, warmupScore: 0 }
+            },
+            total_practice_time: 0
+          }])
+        ]);
+      } catch (initError) {
+        console.error('User initialization error:', initError);
+        // Don't fail the whole request for initialization errors
+      }
     }
 
     // Mark verification as completed
@@ -244,17 +281,22 @@ export default async function handler(req, res) {
       .eq('email', email);
 
     // Log successful verification
-    await supabase
-      .from('activity_logs')
-      .insert([{
-        user_id: user.id,
-        action: 'user_verified',
-        data: {
-          verification_method: 'email',
-          access_level: accessLevel,
-          first_login: !existingUser
-        }
-      }]);
+    try {
+      await supabase
+        .from('activity_logs')
+        .insert([{
+          user_id: user.id,
+          action: 'user_verified',
+          data: {
+            verification_method: 'email',
+            access_level: accessLevel,
+            first_login: !existingUser
+          }
+        }]);
+    } catch (logError) {
+      console.error('Activity log error:', logError);
+      // Don't fail the request for logging errors
+    }
 
     console.log('Email verification successful:', {
       userId: user.id,
@@ -290,7 +332,8 @@ export default async function handler(req, res) {
     console.error('Email verification error:', error);
     res.status(500).json({ 
       error: 'Internal server error',
-      message: 'Failed to verify email. Please try again.' 
+      message: `Failed to verify email: ${error.message}`,
+      details: error
     });
   }
 }

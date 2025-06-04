@@ -1,6 +1,6 @@
 /**
- * User Manager - Enhanced with Supabase and Resend Integration
- * Phase 3: Complete email verification system with database backend
+ * User Manager - Fixed with Session Persistence and Better Error Handling
+ * Fix: Session persistence, user update errors, and form state management
  */
 
 export class UserManager {
@@ -9,7 +9,7 @@ export class UserManager {
         
         // Enhanced Access Levels
         this.accessLevels = {
-            UNLIMITED: 'unlimited',           // All roleplays unlocked (50 hours/month)
+            UNLIMITED: 'unlimited',           // All roleplays unlocked (50 hours/month fair usage)
             UNLIMITED_LOCKED: 'unlimited_locked', // Only roleplay 1 unlocked, others 24hr unlock (50 hours/month)
             LIMITED: 'limited'               // 3 hours or 7 days lifetime, roleplay 1 only (permanent unlocks)
         };
@@ -31,6 +31,42 @@ export class UserManager {
             expiresAt: null,
             canResend: true
         };
+        
+        // CRITICAL FIX: Check for existing session on initialization
+        this.initializeSession();
+    }
+    
+    // CRITICAL FIX: Initialize session and check for existing user
+    initializeSession() {
+        try {
+            // Check if user is already logged in
+            const savedUser = localStorage.getItem('currentUser');
+            if (savedUser) {
+                const user = JSON.parse(savedUser);
+                console.log('🔄 Found existing user session:', user.firstName);
+                
+                // Set the current user
+                this.app.setCurrentUser(user);
+                
+                // Initialize usage tracking
+                this.initializeUsageTracking(user);
+                
+                // Hide the form and show dashboard
+                document.getElementById('userForm').style.display = 'none';
+                
+                // Show welcome back message
+                this.app.uiManager.showSuccess(`Welcome back, ${user.firstName}!`);
+                
+                // Show dashboard after a brief delay
+                setTimeout(() => {
+                    this.app.uiManager.showModuleDashboard();
+                }, 1500);
+            }
+        } catch (error) {
+            console.error('Failed to initialize session:', error);
+            // Clear potentially corrupted session data
+            localStorage.removeItem('currentUser');
+        }
     }
     
     startTraining() {
@@ -335,10 +371,25 @@ export class UserManager {
         try {
             this.updateVerificationStatus('Verifying code...', 'checking');
             
+            // CRITICAL FIX: Include all the original user data in verification
             const verificationData = {
                 email: this.verificationState.email,
                 verificationCode: enteredCode,
-                ...this.verificationState.pendingUser
+                // Include all the original form data
+                firstName: this.verificationState.pendingUser.firstName,
+                prospectJobTitle: this.verificationState.pendingUser.prospectJobTitle,
+                prospectIndustry: this.verificationState.pendingUser.prospectIndustry,
+                targetMarket: this.verificationState.pendingUser.targetMarket,
+                customBehavior: this.verificationState.pendingUser.customBehavior,
+                // Include analytics data
+                userAgent: this.verificationState.pendingUser.userAgent,
+                timezone: this.verificationState.pendingUser.timezone,
+                language: this.verificationState.pendingUser.language,
+                screenResolution: this.verificationState.pendingUser.screenResolution,
+                referrer: this.verificationState.pendingUser.referrer,
+                utmSource: this.verificationState.pendingUser.utmSource,
+                utmMedium: this.verificationState.pendingUser.utmMedium,
+                utmCampaign: this.verificationState.pendingUser.utmCampaign
             };
             
             const response = await fetch('/api/verify-email', {
@@ -463,6 +514,9 @@ export class UserManager {
     }
     
     completeRegistration(user, isNewUser) {
+        // CRITICAL FIX: Save user session to localStorage
+        localStorage.setItem('currentUser', JSON.stringify(user));
+        
         this.app.setCurrentUser(user);
         this.app.logActivity('user_registered', { user, isNewUser });
         
@@ -480,6 +534,46 @@ export class UserManager {
         setTimeout(() => {
             this.app.uiManager.showModuleDashboard();
         }, 1500);
+    }
+    
+    // CRITICAL FIX: Add logout functionality
+    logout() {
+        try {
+            // Clear session data
+            localStorage.removeItem('currentUser');
+            
+            // Reset app state
+            this.app.setCurrentUser(null);
+            this.usageTracking = {
+                sessionTime: 0,
+                totalUsage: 0,
+                monthlyUsage: 0,
+                lastReset: null,
+                accessLevel: null
+            };
+            
+            // Stop any active sessions
+            if (this.usageTimer) {
+                clearInterval(this.usageTimer);
+            }
+            
+            // Show registration form
+            document.getElementById('userForm').style.display = 'block';
+            document.getElementById('moduleDashboard').style.display = 'none';
+            document.getElementById('phoneInterface').style.display = 'none';
+            
+            // Clear form fields
+            document.getElementById('userName').value = '';
+            document.getElementById('userEmail').value = '';
+            document.getElementById('prospectJobTitle').value = '';
+            document.getElementById('targetMarket').value = '';
+            
+            this.app.uiManager.showSuccess('Logged out successfully');
+            
+            console.log('🚪 User logged out');
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
     }
     
     initializeUsageTracking(user) {

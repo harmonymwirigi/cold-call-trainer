@@ -1,6 +1,6 @@
 /**
- * Call Manager - Fixed Opener + Early Objections Flow
- * Critical Fix: H1. Opener + Early Objections Flow
+ * Call Manager - Complete Final Version
+ * Combines all fixes: Ring control, hangup button, conversation flow, and warmup summary
  */
 
 export class CallManager {
@@ -10,6 +10,11 @@ export class CallManager {
         this.currentQuestionIndex = 0;
         this.correctAnswers = 0;
         this.warmupQuestions = [];
+        
+        // CRITICAL FIX: Track ring state to prevent infinite ringing
+        this.isRinging = false;
+        this.ringTimeout = null;
+        this.callSequenceActive = false;
         
         // CRITICAL FIX: Track conversation flow state
         this.conversationState = {
@@ -34,6 +39,10 @@ export class CallManager {
         this.currentQuestionIndex = 0;
         this.correctAnswers = 0;
         this.app.speechManager.clearSessionData();
+        
+        // CRITICAL FIX: Reset call sequence state
+        this.callSequenceActive = true;
+        this.isRinging = false;
         
         // CRITICAL FIX: Reset conversation state
         this.resetConversationState();
@@ -92,6 +101,8 @@ export class CallManager {
         document.getElementById('voiceStatus').textContent = 'Connecting...';
         
         this.app.uiManager.resetVoiceVisualizer();
+        
+        // CRITICAL FIX: Ensure hangup button is properly positioned
         this.fixHangupButtonPosition();
     }
     
@@ -105,7 +116,7 @@ export class CallManager {
             existingSkipBtn.remove();
         }
         
-        // Create skip button
+        // Create skip button with proper styling
         const skipButton = document.createElement('button');
         skipButton.id = 'skipQuestionBtn';
         skipButton.textContent = 'NEXT QUESTION';
@@ -121,6 +132,9 @@ export class CallManager {
             margin-top: 10px;
             transition: all 0.3s ease;
             backdrop-filter: blur(10px);
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
         `;
         
         skipButton.addEventListener('mouseover', () => {
@@ -145,34 +159,61 @@ export class CallManager {
         
         this.app.speechManager.skippedQuestions.push({
             questionNumber: this.app.getCurrentProgress() + 1,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            questionText: this.getCurrentQuestionText(),
+            method: 'button_click'
         });
         
-        this.app.speechManager.updateVoiceStatus('Question skipped...');
+        this.app.speechManager.updateVoiceStatus('⏭️ Question skipped. Moving to next...');
         
         setTimeout(() => {
             this.handleWarmupNext();
         }, 1000);
     }
     
+    getCurrentQuestionText() {
+        const currentIndex = this.app.getCurrentProgress();
+        if (this.warmupQuestions && this.warmupQuestions[currentIndex]) {
+            return this.warmupQuestions[currentIndex];
+        }
+        return `Question ${currentIndex + 1}`;
+    }
+    
+    // CRITICAL FIX: Enhanced hangup button positioning
     fixHangupButtonPosition() {
         const hangupBtn = document.querySelector('.decline-btn');
         if (hangupBtn) {
+            // Ensure the button is properly contained within the phone interface
             hangupBtn.style.position = 'relative';
             hangupBtn.style.zIndex = '10';
             hangupBtn.style.margin = '0 auto';
-            hangupBtn.style.maxWidth = '80px';
-            hangupBtn.style.maxHeight = '80px';
+            hangupBtn.style.display = 'flex';
+            hangupBtn.style.alignItems = 'center';
+            hangupBtn.style.justifyContent = 'center';
+            
+            // Ensure parent container has proper layout
+            const callActions = hangupBtn.closest('.call-actions');
+            if (callActions) {
+                callActions.style.display = 'flex';
+                callActions.style.justifyContent = 'center';
+                callActions.style.alignItems = 'center';
+                callActions.style.padding = '0 30px';
+                callActions.style.minHeight = '90px';
+            }
             
             console.log('📱 Fixed hangup button positioning');
         }
     }
     
     startCallSequence() {
+        if (!this.callSequenceActive) return;
+        
         this.updateCallStatus('Dialing...');
         this.app.audioManager.playDialTone();
         
         setTimeout(() => {
+            if (!this.callSequenceActive) return;
+            
             const scenarios = ['ring', 'ring', 'ring', 'no_answer', 'ring'];
             const scenario = scenarios[Math.floor(Math.random() * scenarios.length)];
             
@@ -185,47 +226,90 @@ export class CallManager {
     }
     
     handleNoAnswer() {
+        if (!this.callSequenceActive) return;
+        
         this.updateCallStatus('No answer...');
         this.app.audioManager.stopAudio();
         
         setTimeout(() => {
+            if (!this.callSequenceActive) return;
+            
             this.updateCallStatus('Redialing...');
             setTimeout(() => {
-                this.startRinging();
+                if (this.callSequenceActive) {
+                    this.startRinging();
+                }
             }, 1500);
         }, 3000);
     }
     
+    // CRITICAL FIX: Better ring control with timeout
     startRinging() {
+        if (!this.callSequenceActive) return;
+        
         this.updateCallStatus('Ringing...');
+        this.isRinging = true;
+        
+        // Start ring tone
         this.app.audioManager.playRingTone();
         
-        document.getElementById('callAnimation').classList.add('active');
+        // Add call animation
+        const callAnimation = document.getElementById('callAnimation');
+        if (callAnimation) {
+            callAnimation.classList.add('active');
+        }
         
-        setTimeout(() => {
-            this.answerCall();
-        }, 3000 + Math.random() * 3000);
+        // CRITICAL FIX: Set timeout to automatically answer after reasonable time
+        const ringDuration = 3000 + Math.random() * 4000; // 3-7 seconds
+        
+        this.ringTimeout = setTimeout(() => {
+            if (this.callSequenceActive && this.isRinging) {
+                this.answerCall();
+            }
+        }, ringDuration);
     }
     
+    // CRITICAL FIX: Properly stop ringing when call is answered
     answerCall() {
-        this.app.audioManager.stopAudio();
-        document.getElementById('callAnimation').classList.remove('active');
+        if (!this.callSequenceActive) return;
+        
+        console.log('📞 Call answered - stopping ring');
+        
+        // CRITICAL FIX: Stop ringing immediately
+        this.isRinging = false;
+        this.app.audioManager.stopAudio(); // This will stop the ring tone
+        
+        // Clear ring timeout
+        if (this.ringTimeout) {
+            clearTimeout(this.ringTimeout);
+            this.ringTimeout = null;
+        }
+        
+        // Remove call animation
+        const callAnimation = document.getElementById('callAnimation');
+        if (callAnimation) {
+            callAnimation.classList.remove('active');
+        }
         
         this.updateCallStatus('Connected');
         this.startCallTimer();
         this.app.speechManager.updateVoiceStatus('AI is speaking...');
         
         setTimeout(() => {
-            this.startConversation();
+            if (this.callSequenceActive) {
+                this.startConversation();
+            }
         }, 1000);
     }
     
     startConversation() {
+        if (!this.callSequenceActive) return;
+        
         const welcomeMessage = this.generateWelcomeMessage();
         this.app.speechManager.speakAI(welcomeMessage);
         
         setTimeout(() => {
-            if (this.app.isInCall()) {
+            if (this.app.isInCall() && this.callSequenceActive) {
                 this.app.speechManager.startContinuousListening();
             }
         }, 2000);
@@ -600,8 +684,15 @@ export class CallManager {
         const maxProgress = this.app.getMaxProgress();
         const progressPercent = (currentProgress / maxProgress) * 100;
         
-        document.getElementById('callProgressFill').style.width = `${progressPercent}%`;
-        document.getElementById('callProgressText').textContent = `${currentProgress}/${maxProgress}`;
+        const progressFill = document.getElementById('callProgressFill');
+        const progressText = document.getElementById('callProgressText');
+        
+        if (progressFill) {
+            progressFill.style.width = `${progressPercent}%`;
+        }
+        if (progressText) {
+            progressText.textContent = `${currentProgress}/${maxProgress}`;
+        }
     }
     
     updateCallStatus(status) {
@@ -626,29 +717,55 @@ export class CallManager {
         }, 1000);
     }
     
+    // CRITICAL FIX: Enhanced endCall method with proper cleanup
     endCall(completed = false) {
+        console.log('📞 Ending call, completed:', completed);
+        
+        // CRITICAL FIX: Stop call sequence immediately
+        this.callSequenceActive = false;
+        this.isRinging = false;
+        
+        // Clear any pending timeouts
+        if (this.ringTimeout) {
+            clearTimeout(this.ringTimeout);
+            this.ringTimeout = null;
+        }
+        
+        // Stop all audio immediately
+        this.app.audioManager.stopAudio();
+        
+        // Stop speech and listening
         this.app.setCallActive(false);
         this.app.speechManager.continuousListening = false;
         this.app.speechManager.stopListening();
         this.app.speechManager.stopCurrentSpeech();
-        this.app.audioManager.stopAudio();
         
+        // Stop call timer
         if (this.callTimer) {
             clearInterval(this.callTimer);
             this.callTimer = null;
         }
         
+        // Remove skip button
         const skipBtn = document.getElementById('skipQuestionBtn');
         if (skipBtn) {
             skipBtn.remove();
         }
         
+        // Remove call animation
+        const callAnimation = document.getElementById('callAnimation');
+        if (callAnimation) {
+            callAnimation.classList.remove('active');
+        }
+        
+        // Update practice time
         if (this.app.callStartTime) {
             const callDuration = Date.now() - this.app.callStartTime;
             this.app.totalPracticeTime += callDuration;
             this.app.progressManager.saveProgress();
         }
         
+        // Play hangup tone
         this.app.audioManager.playHangupTone();
         
         setTimeout(() => {
@@ -678,6 +795,7 @@ export class CallManager {
         }
     }
     
+    // COMPLETE: showWarmupSummary method with full breakdown
     showWarmupSummary() {
         const skipped = this.app.speechManager.getSkippedQuestions();
         const timeouts = this.app.speechManager.getTimeoutResponses();
@@ -728,7 +846,7 @@ export class CallManager {
                     <strong>📊 Performance Breakdown:</strong>
                     <div style="margin-top: 10px;">
                         <div>✅ Correct: ${correctAnswered}</div>
-                        <div>❌ Incorrect: ${incorrectAnswered}</div>
+                        <div>❌ Incorrect: ${Math.max(0, incorrectAnswered)}</div>
                         <div>⏭️ Skipped: ${skipped.length}</div>
                         <div>⏰ Too Slow: ${timeouts.length}</div>
                     </div>
@@ -784,28 +902,27 @@ export class CallManager {
     // Call control methods
     toggleMute() {
         console.log('🔇 Mute toggled');
+        // Add actual mute functionality here if needed
     }
     
     toggleSpeaker() {
         console.log('🔊 Speaker toggled');
+        // Add actual speaker functionality here if needed
     }
     
     showKeypad() {
         console.log('⌨️ Keypad shown');
+        // Add actual keypad functionality here if needed
     }
     
-    addHangupButton() {
-        const hangupBtn = document.querySelector('.decline-btn');
-        if (hangupBtn) {
-            hangupBtn.style.position = 'relative';
-            hangupBtn.style.zIndex = '10';
-        }
-    }
-    
+    // CRITICAL FIX: Enhanced hangup handling
     handleHangup() {
         if (this.app.isInCall()) {
+            console.log('📞 User initiated hangup');
             this.provideHangupCoaching();
             this.endCall(false);
+        } else {
+            console.log('📞 Hangup called but no active call');
         }
     }
     
@@ -839,8 +956,61 @@ export class CallManager {
             case 'powerhour':
                 coachingMessage += "Power hour requires stamina. Build up your skills with individual modules first.";
                 break;
+            default:
+                coachingMessage += "Keep practicing to improve your cold calling skills.";
+                break;
         }
         
         this.app.uiManager.showFeedbackModal('Coaching Feedback', coachingMessage);
+    }
+    
+    // ADDITIONAL: Methods for debugging and testing
+    debugCallState() {
+        console.log('🔍 Call Manager Debug State:');
+        console.log('- Call Active:', this.app.isInCall());
+        console.log('- Call Sequence Active:', this.callSequenceActive);
+        console.log('- Is Ringing:', this.isRinging);
+        console.log('- Ring Timeout:', this.ringTimeout);
+        console.log('- Current Module:', this.app.getCurrentModule());
+        console.log('- Current Mode:', this.app.getCurrentMode());
+        console.log('- Current Progress:', this.app.getCurrentProgress());
+        console.log('- Conversation State:', this.conversationState);
+        console.log('- Correct Answers:', this.correctAnswers);
+    }
+    
+    // ADDITIONAL: Force end call for emergency situations
+    forceEndCall() {
+        console.log('🚨 Force ending call');
+        this.callSequenceActive = false;
+        this.isRinging = false;
+        
+        // Clear all timeouts
+        if (this.ringTimeout) {
+            clearTimeout(this.ringTimeout);
+            this.ringTimeout = null;
+        }
+        if (this.callTimer) {
+            clearInterval(this.callTimer);
+            this.callTimer = null;
+        }
+        
+        // Stop all audio and speech
+        this.app.audioManager.stopAudio();
+        this.app.speechManager.stopListening();
+        this.app.speechManager.stopCurrentSpeech();
+        
+        // Clean up UI
+        const skipBtn = document.getElementById('skipQuestionBtn');
+        if (skipBtn) skipBtn.remove();
+        
+        const callAnimation = document.getElementById('callAnimation');
+        if (callAnimation) callAnimation.classList.remove('active');
+        
+        // Set app state
+        this.app.setCallActive(false);
+        this.app.speechManager.continuousListening = false;
+        
+        // Return to dashboard
+        this.app.uiManager.showModuleDashboard();
     }
 }

@@ -1,6 +1,6 @@
 /**
  * Cold Call Roleplay Trainer - Core Application Class
- * Updated with Supabase and Resend integration
+ * Updated with better session management and logout functionality
  */
 
 import { UserManager } from './modules/usermanager.js';
@@ -53,6 +53,9 @@ class ColdCallTrainer {
             // Setup event listeners
             this.setupEventListeners();
             
+            // CRITICAL FIX: Add logout button to header if user is logged in
+            this.addLogoutButton();
+            
             // Update UI
             this.uiManager.updateModuleUI();
             
@@ -61,6 +64,52 @@ class ColdCallTrainer {
         } catch (error) {
             console.error('❌ Failed to initialize app:', error);
             this.uiManager.showError('Failed to initialize application. Please refresh the page.');
+        }
+    }
+    
+    // CRITICAL FIX: Add logout button to the interface
+    addLogoutButton() {
+        if (this.currentUser) {
+            const header = document.querySelector('.header');
+            if (header && !document.getElementById('logoutBtn')) {
+                const logoutBtn = document.createElement('button');
+                logoutBtn.id = 'logoutBtn';
+                logoutBtn.textContent = 'Logout';
+                logoutBtn.style.cssText = `
+                    position: absolute;
+                    top: 20px;
+                    right: 20px;
+                    background: rgba(255,255,255,0.2);
+                    border: 1px solid rgba(255,255,255,0.3);
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 0.9rem;
+                    transition: all 0.3s ease;
+                `;
+                
+                logoutBtn.addEventListener('mouseover', () => {
+                    logoutBtn.style.background = 'rgba(255,255,255,0.3)';
+                });
+                
+                logoutBtn.addEventListener('mouseout', () => {
+                    logoutBtn.style.background = 'rgba(255,255,255,0.2)';
+                });
+                
+                logoutBtn.addEventListener('click', () => {
+                    this.logout();
+                });
+                
+                header.style.position = 'relative';
+                header.appendChild(logoutBtn);
+            }
+        } else {
+            // Remove logout button if no user
+            const existingBtn = document.getElementById('logoutBtn');
+            if (existingBtn) {
+                existingBtn.remove();
+            }
         }
     }
     
@@ -142,12 +191,18 @@ class ColdCallTrainer {
         return this.userManager.showRegistrationForm();
     }
     
+    // CRITICAL FIX: Add logout method
+    logout() {
+        this.userManager.logout();
+        this.addLogoutButton(); // This will remove the button since user is null
+    }
+    
     startModule(moduleId, mode) {
         return this.moduleManager.startModule(moduleId, mode);
     }
     
     endCall() {
-        return this.callManager.endCall();
+        return this.callManager.handleHangup(); // Use handleHangup instead of endCall
     }
     
     toggleMute() {
@@ -202,6 +257,8 @@ class ColdCallTrainer {
     // State setters
     setCurrentUser(user) {
         this.currentUser = user;
+        // Update logout button when user changes
+        this.addLogoutButton();
     }
     
     setCurrentModule(moduleId) {
@@ -314,6 +371,11 @@ window.showRegistrationForm = function() {
     app?.showRegistrationForm();
 };
 
+// CRITICAL FIX: Add logout function
+window.logout = function() {
+    app?.logout();
+};
+
 window.startModule = function(moduleId, mode) {
     app?.startModule(moduleId, mode);
 };
@@ -379,6 +441,20 @@ window.checkSystemHealth = function() {
     return app.checkSystemHealth();
 };
 
+// CRITICAL FIX: Add session management functions
+window.getCurrentUser = function() {
+    if (!app) {
+        console.log('App not initialized yet');
+        return null;
+    }
+    return app.getCurrentUser();
+};
+
+window.clearSession = function() {
+    localStorage.removeItem('currentUser');
+    location.reload();
+};
+
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🎯 Cold Call Roleplay Trainer Loading...');
@@ -418,6 +494,20 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             .mobile-device .verification-form input[type="text"] {
                 font-size: 18px;
+            }
+            @media (max-width: 480px) {
+                .header h1 {
+                    font-size: 1.8rem;
+                    line-height: 1.2;
+                }
+                .header p {
+                    font-size: 0.9rem;
+                }
+                #logoutBtn {
+                    position: static !important;
+                    margin: 10px auto 0 auto !important;
+                    display: block !important;
+                }
             }
         `;
         document.head.appendChild(mobileStyles);
@@ -460,6 +550,14 @@ window.addEventListener('unhandledrejection', function(event) {
         });
     }
 });
+
+// CRITICAL FIX: Add service worker for better caching (optional)
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+        // You can add a service worker here for offline functionality
+        console.log('💾 Service worker support detected');
+    });
+}
 
 // Export for testing
 export { ColdCallTrainer };
