@@ -1,6 +1,6 @@
 /**
- * Speech Manager - Handles speech recognition and text-to-speech
- * Phase 2 Update: Enhanced timeout system with 5-second timeout for warm-up
+ * Speech Manager - Enhanced with proper conversation flow handling
+ * Critical Fix: Handle opener flow interaction properly
  */
 
 export class SpeechManager {
@@ -20,9 +20,9 @@ export class SpeechManager {
         this.repeatAttempts = 0;
         this.maxRepeatAttempts = 3;
         
-        // Phase 2 E2: Enhanced timeout system
+        // Enhanced timeout system
         this.responseTimeout = null;
-        this.timeoutDuration = 5000; // Phase 2 E2: 5-second timeout
+        this.timeoutDuration = 5000;
         this.timeoutResponses = [];
         this.skippedQuestions = [];
         this.timeoutCountdown = null;
@@ -59,13 +59,11 @@ export class SpeechManager {
                 console.log('🗣️ User said:', transcript, 'Confidence:', confidence);
                 
                 if (transcript && transcript.length > 2) {
-                    // Check for skip command
                     if (this.isSkipCommand(transcript)) {
                         this.handleSkipCommand();
                         return;
                     }
                     
-                    // Check if we're in a repeat loop
                     if (this.isInRepeatLoop) {
                         this.handleRepeatAttempt(transcript, confidence);
                     } else {
@@ -95,13 +93,11 @@ export class SpeechManager {
         }
     }
     
-    // Phase 2 E2: Enhanced timeout system with visual countdown
     startResponseTimeout() {
         this.clearResponseTimeout();
         
         const currentModule = this.app.getCurrentModule();
         
-        // Only show timeout countdown for warmup module
         if (currentModule === 'warmup') {
             this.startTimeoutCountdown();
         }
@@ -113,9 +109,8 @@ export class SpeechManager {
         }, this.timeoutDuration);
     }
     
-    // Phase 2 E2: Visual countdown for warmup
     startTimeoutCountdown() {
-        let timeLeft = Math.floor(this.timeoutDuration / 1000); // 5 seconds
+        let timeLeft = Math.floor(this.timeoutDuration / 1000);
         
         const updateCountdown = () => {
             if (timeLeft > 0 && this.isRecording) {
@@ -140,7 +135,6 @@ export class SpeechManager {
         }
     }
     
-    // Phase 2 E2: Enhanced timeout handling
     handleTimeout() {
         console.log('⏰ Response timeout - 5 seconds elapsed');
         this.stopListening();
@@ -148,17 +142,14 @@ export class SpeechManager {
         const currentModule = this.app.getCurrentModule();
         
         if (currentModule === 'warmup') {
-            // Phase 2 E2: Track timeout for warmup with enhanced data
             this.timeoutResponses.push({
                 questionNumber: this.app.getCurrentProgress() + 1,
                 timestamp: new Date().toISOString(),
                 questionText: this.getCurrentQuestionText()
             });
             
-            // Phase 2 E2: "Too slow" message
             this.updateVoiceStatus('⏰ Too slow! Moving to next question...');
             
-            // Brief pause before moving to next question
             setTimeout(() => {
                 if (this.app.isInCall()) {
                     this.app.callManager.handleTimeoutNext();
@@ -171,7 +162,6 @@ export class SpeechManager {
     }
     
     getCurrentQuestionText() {
-        // Get the current question text for better tracking
         const currentIndex = this.app.getCurrentProgress();
         if (this.app.callManager.warmupQuestions && this.app.callManager.warmupQuestions[currentIndex]) {
             return this.app.callManager.warmupQuestions[currentIndex];
@@ -185,7 +175,6 @@ export class SpeechManager {
         return skipCommands.some(command => lowerTranscript.includes(command));
     }
     
-    // Phase 2 E2: Enhanced skip command handling
     handleSkipCommand() {
         const currentModule = this.app.getCurrentModule();
         
@@ -215,7 +204,6 @@ export class SpeechManager {
         this.continuousListening = true;
         this.startListening();
         
-        // Phase 2 E2: Enhanced status message for warmup
         const currentModule = this.app.getCurrentModule();
         if (currentModule === 'warmup') {
             this.updateVoiceStatus('Your turn - speak clearly (5s timeout)');
@@ -258,7 +246,6 @@ export class SpeechManager {
     handleUserInput(transcript, confidence = 0.8) {
         if (!this.app.isInCall()) return;
         
-        // Track speaking time
         if (this.speechStartTime) {
             const speakingTime = Date.now() - this.speechStartTime;
             this.app.totalPracticeTime += speakingTime;
@@ -399,12 +386,8 @@ export class SpeechManager {
             // Speak the AI response
             this.speakAI(parsedResponse.message);
             
-            // Handle progression
-            if (parsedResponse.success && (this.app.getCurrentMode() === 'marathon' || this.app.getCurrentMode() === 'legend')) {
-                this.app.callManager.handleSuccessfulInteraction();
-            } else if (parsedResponse.feedback) {
-                this.app.uiManager.showCallFeedback(parsedResponse.feedback, parsedResponse.success);
-            }
+            // CRITICAL FIX: Enhanced progression handling with user input context
+            this.handleProgressionLogic(userInput, parsedResponse, confidence);
             
         } catch (error) {
             console.error('AI Response Error:', error);
@@ -418,12 +401,116 @@ export class SpeechManager {
         }
     }
     
+    // CRITICAL FIX: Enhanced progression logic
+    handleProgressionLogic(userInput, parsedResponse, confidence) {
+        const currentModule = this.app.getCurrentModule();
+        const currentMode = this.app.getCurrentMode();
+        
+        console.log('🔄 Progression Logic:', {
+            module: currentModule,
+            mode: currentMode,
+            userInput,
+            response: parsedResponse.message,
+            success: parsedResponse.success
+        });
+        
+        // Different handling for different modules
+        if (currentModule === 'warmup') {
+            // Warmup: Simple success handling
+            if (parsedResponse.success || this.isCorrectWarmupResponse(userInput)) {
+                this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
+            }
+        } else if (currentModule === 'opener') {
+            // Opener: Complex flow handling
+            this.handleOpenerProgression(userInput, parsedResponse, confidence);
+        } else {
+            // Other modules: Standard handling
+            if (parsedResponse.success || (currentMode === 'marathon' || currentMode === 'legend')) {
+                this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
+            } else if (parsedResponse.feedback) {
+                this.app.uiManager.showCallFeedback(parsedResponse.feedback, parsedResponse.success);
+            }
+        }
+    }
+    
+    // CRITICAL FIX: Handle opener module progression
+    handleOpenerProgression(userInput, parsedResponse, confidence) {
+        const currentMode = this.app.getCurrentMode();
+        
+        // Analyze user input to determine what they said
+        const inputAnalysis = this.analyzeUserInput(userInput);
+        
+        console.log('🔄 Opener Analysis:', inputAnalysis);
+        
+        // For practice mode: progression through complete flow
+        if (currentMode === 'practice') {
+            if (inputAnalysis.type === 'opener' || inputAnalysis.type === 'objection_response' || 
+                inputAnalysis.type === 'pitch' || inputAnalysis.type === 'meeting_request') {
+                
+                // Pass the analysis to call manager for flow control
+                this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
+            }
+        } 
+        // For marathon mode: objection handling practice
+        else if (currentMode === 'marathon') {
+            if (inputAnalysis.type === 'opener' || inputAnalysis.type === 'objection_response') {
+                this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
+            }
+        }
+    }
+    
+    // CRITICAL FIX: Analyze user input to understand intent
+    analyzeUserInput(input) {
+        const lowerInput = input.toLowerCase();
+        
+        // Check for opener indicators
+        const openerIndicators = ['hi', 'hello', 'my name is', 'this is', 'calling from', 'i\'m calling'];
+        const hasOpenerIndicators = openerIndicators.some(indicator => lowerInput.includes(indicator));
+        
+        // Check for objection response indicators
+        const objectionIndicators = ['understand', 'appreciate', 'respect', 'i hear you', 'makes sense'];
+        const hasObjectionIndicators = objectionIndicators.some(indicator => lowerInput.includes(indicator));
+        
+        // Check for pitch indicators
+        const pitchIndicators = ['help', 'solution', 'benefit', 'value', 'save', 'improve', 'increase'];
+        const hasPitchIndicators = pitchIndicators.some(indicator => lowerInput.includes(indicator));
+        
+        // Check for meeting request indicators
+        const meetingIndicators = ['meeting', 'call', 'discuss', 'chat', 'available', 'time', 'schedule'];
+        const hasMeetingIndicators = meetingIndicators.some(indicator => lowerInput.includes(indicator));
+        
+        // Determine the most likely type
+        if (hasOpenerIndicators) {
+            return { type: 'opener', confidence: 0.8 };
+        } else if (hasObjectionIndicators) {
+            return { type: 'objection_response', confidence: 0.7 };
+        } else if (hasPitchIndicators) {
+            return { type: 'pitch', confidence: 0.7 };
+        } else if (hasMeetingIndicators) {
+            return { type: 'meeting_request', confidence: 0.6 };
+        } else {
+            return { type: 'general', confidence: 0.5 };
+        }
+    }
+    
+    // CRITICAL FIX: Better warmup response detection
+    isCorrectWarmupResponse(input) {
+        const lowerInput = input.toLowerCase();
+        
+        // Basic indicators of a reasonable response
+        const responseIndicators = [
+            'hi', 'hello', 'my name', 'calling', 'understand', 'appreciate',
+            'meeting', 'discuss', 'help', 'solution', 'benefit', 'value'
+        ];
+        
+        return responseIndicators.some(indicator => lowerInput.includes(indicator)) && input.length > 10;
+    }
+    
     buildGPTPrompt(userInput) {
         const currentCharacter = this.app.characterManager.getCurrentCharacter();
         const currentModule = this.app.getCurrentModule();
         const context = this.getConversationContext();
         
-        // Get system prompt from character manager
         const systemPrompt = this.app.characterManager.buildSystemPrompt(currentModule, context);
         
         const messages = [
@@ -437,8 +524,9 @@ export class SpeechManager {
             }
         ];
         
-        // Add evaluation instruction for marathon/legend modes
-        if (this.app.getCurrentMode() === 'marathon' || this.app.getCurrentMode() === 'legend') {
+        // Add evaluation instruction for marathon/legend modes or opener practice
+        if (this.app.getCurrentMode() === 'marathon' || this.app.getCurrentMode() === 'legend' || 
+           (currentModule === 'opener' && this.app.getCurrentMode() === 'practice')) {
             messages[0].content += '\n\nIMPORTANT: After your response, evaluate the user\'s input and provide feedback in this format: "FEEDBACK: [SUCCESS/RETRY] - [brief explanation]"';
         }
         
@@ -446,15 +534,38 @@ export class SpeechManager {
     }
     
     getConversationContext() {
+        const currentModule = this.app.getCurrentModule();
+        const conversationState = this.app.callManager.conversationState;
+        
         const contexts = {
             warmup: "This is a warm-up exercise. The caller needs quick practice with rapid-fire questions.",
-            opener: "This is opener practice. Evaluate their greeting, name introduction, and reason for calling.",
+            opener: `This is opener practice. Current conversation stage: ${conversationState?.stage || 'opener'}. ${this.getOpenerStageContext(conversationState)}`,
             pitch: "This is pitch practice. Evaluate if they presented benefits, specifics, and engagement.",
             fullcall: "This is a complete cold call simulation. Act like a real prospect.",
             powerhour: "This is rapid-fire practice. Create urgency and time pressure."
         };
         
-        return contexts[this.app.getCurrentModule()] || contexts.warmup;
+        return contexts[currentModule] || contexts.warmup;
+    }
+    
+    // CRITICAL FIX: Context for opener stages
+    getOpenerStageContext(conversationState) {
+        if (!conversationState) return "Expecting an opener.";
+        
+        switch (conversationState.stage) {
+            case 'opener':
+                return "Expecting the caller to deliver their opening line with name, company, and reason for calling.";
+            case 'objection':
+                return "Give an early objection. Evaluate if they show empathy, don't argue, and ask questions.";
+            case 'pitch':
+                return "They handled the objection. Now let them pitch and evaluate their value proposition.";
+            case 'meeting':
+                return "They pitched. Now let them ask for a meeting and negotiate time.";
+            case 'complete':
+                return "Call flow complete. Wrap up positively.";
+            default:
+                return "Continue the natural conversation flow.";
+        }
     }
     
     async callOpenAI(messages) {
@@ -493,6 +604,11 @@ export class SpeechManager {
     generateFallbackResponse() {
         const currentModule = this.app.getCurrentModule();
         const progress = this.app.getCurrentProgress();
+        const conversationState = this.app.callManager.conversationState;
+        
+        if (currentModule === 'opener') {
+            return this.generateOpenerFallbackResponse(conversationState);
+        }
         
         const fallbackResponses = {
             warmup: [
@@ -505,18 +621,6 @@ export class SpeechManager {
                 "Handle this: 'We don't take cold calls.'",
                 "Handle this: 'It's too expensive.'",
                 "Handle this: 'We have no budget.'"
-            ],
-            opener: [
-                "What's this about?",
-                "I'm not interested.",
-                "We don't take cold calls.",
-                "Now is not a good time.",
-                "I have a meeting.",
-                "Can you call me later?",
-                "Send me an email.",
-                "Who gave you this number?",
-                "What are you trying to sell me?",
-                "Is this a sales call?"
             ],
             pitch: [
                 "Go ahead with your pitch.",
@@ -562,6 +666,34 @@ export class SpeechManager {
         }
         
         return response;
+    }
+    
+    // CRITICAL FIX: Opener-specific fallback responses
+    generateOpenerFallbackResponse(conversationState) {
+        if (!conversationState) conversationState = { stage: 'opener' };
+        
+        switch (conversationState.stage) {
+            case 'opener':
+                const objections = [
+                    "What's this about? FEEDBACK: SUCCESS - Now handle this objection with empathy.",
+                    "I'm not interested. FEEDBACK: SUCCESS - Good opener, now address this objection.",
+                    "We don't take cold calls. FEEDBACK: SUCCESS - Handle this common objection.",
+                    "Now is not a good time. FEEDBACK: SUCCESS - Address their timing concern."
+                ];
+                return objections[Math.floor(Math.random() * objections.length)];
+                
+            case 'objection':
+                return "Good response! Now give me your pitch. FEEDBACK: SUCCESS - Nice objection handling.";
+                
+            case 'pitch':
+                return "Interesting. What exactly are you proposing? FEEDBACK: SUCCESS - Good pitch delivery.";
+                
+            case 'meeting':
+                return "Let me check my calendar. Good work! FEEDBACK: SUCCESS - Complete flow executed well.";
+                
+            default:
+                return "Hello, who is this? FEEDBACK: SUCCESS - Start with your opener.";
+        }
     }
     
     parseAIResponse(response) {
@@ -731,7 +863,6 @@ export class SpeechManager {
         }
     }
     
-    // Phase 2 E2: Enhanced tracking methods
     getSkippedQuestions() {
         return this.skippedQuestions;
     }
@@ -740,7 +871,6 @@ export class SpeechManager {
         return this.timeoutResponses;
     }
     
-    // Phase 2 E2: Get detailed session statistics
     getSessionStatistics() {
         const totalQuestions = this.app.getCurrentProgress();
         const skippedCount = this.skippedQuestions.length;

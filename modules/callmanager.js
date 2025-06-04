@@ -1,6 +1,6 @@
 /**
- * Call Manager - Handles call flow, progression, and phone interface
- * Phase 2 Update: Enhanced warm-up challenge with proper scoring and timeout features
+ * Call Manager - Fixed Opener + Early Objections Flow
+ * Critical Fix: H1. Opener + Early Objections Flow
  */
 
 export class CallManager {
@@ -10,6 +10,16 @@ export class CallManager {
         this.currentQuestionIndex = 0;
         this.correctAnswers = 0;
         this.warmupQuestions = [];
+        
+        // CRITICAL FIX: Track conversation flow state
+        this.conversationState = {
+            stage: 'opener', // 'opener', 'objection', 'pitch', 'meeting', 'complete'
+            openerDelivered: false,
+            objectionHandled: false,
+            pitchDelivered: false,
+            meetingRequested: false,
+            objectionCount: 0
+        };
     }
     
     initializeCall() {
@@ -25,12 +35,29 @@ export class CallManager {
         this.correctAnswers = 0;
         this.app.speechManager.clearSessionData();
         
+        // CRITICAL FIX: Reset conversation state
+        this.resetConversationState();
+        
         // Show phone interface
         document.getElementById('moduleDashboard').style.display = 'none';
         document.getElementById('phoneInterface').style.display = 'flex';
         
         this.setupPhoneUI();
         this.startCallSequence();
+    }
+    
+    // CRITICAL FIX: Reset conversation state for each call
+    resetConversationState() {
+        this.conversationState = {
+            stage: 'opener',
+            openerDelivered: false,
+            objectionHandled: false,
+            pitchDelivered: false,
+            meetingRequested: false,
+            objectionCount: 0
+        };
+        
+        console.log('🔄 Conversation state reset:', this.conversationState);
     }
     
     setupPhoneUI() {
@@ -47,11 +74,11 @@ export class CallManager {
         document.getElementById('moduleType').textContent = `${this.app.getCurrentMode().toUpperCase()} Mode`;
         document.getElementById('moduleDescription').textContent = module.description;
         
-        // Setup progress display - Phase 2 E1: Proper warmup progress
+        // Setup progress display
         if (this.app.getCurrentModule() === 'warmup') {
             document.getElementById('callProgressContainer').style.display = 'block';
             this.updateWarmupProgress();
-            this.addSkipButton(); // Phase 2 E2: Add skip functionality
+            this.addSkipButton();
         } else if (this.app.getCurrentMode() === 'marathon' || this.app.getCurrentMode() === 'legend') {
             document.getElementById('callProgressContainer').style.display = 'block';
             this.updateCallProgress();
@@ -65,12 +92,9 @@ export class CallManager {
         document.getElementById('voiceStatus').textContent = 'Connecting...';
         
         this.app.uiManager.resetVoiceVisualizer();
-        
-        // Fix hangup button positioning (Phase 1 G1)
         this.fixHangupButtonPosition();
     }
     
-    // Phase 2 E2: Add skip button for warm-up challenge
     addSkipButton() {
         const voiceStatus = document.getElementById('voiceStatus');
         if (!voiceStatus) return;
@@ -113,15 +137,12 @@ export class CallManager {
             this.handleSkipQuestion();
         });
         
-        // Insert after voice status
         voiceStatus.parentNode.insertBefore(skipButton, voiceStatus.nextSibling);
     }
     
-    // Phase 2 E2: Handle skip question functionality
     handleSkipQuestion() {
         if (this.app.getCurrentModule() !== 'warmup') return;
         
-        // Record the skip
         this.app.speechManager.skippedQuestions.push({
             questionNumber: this.app.getCurrentProgress() + 1,
             timestamp: new Date().toISOString()
@@ -129,7 +150,6 @@ export class CallManager {
         
         this.app.speechManager.updateVoiceStatus('Question skipped...');
         
-        // Move to next question
         setTimeout(() => {
             this.handleWarmupNext();
         }, 1000);
@@ -138,7 +158,6 @@ export class CallManager {
     fixHangupButtonPosition() {
         const hangupBtn = document.querySelector('.decline-btn');
         if (hangupBtn) {
-            // Ensure hangup button stays within phone boundaries
             hangupBtn.style.position = 'relative';
             hangupBtn.style.zIndex = '10';
             hangupBtn.style.margin = '0 auto';
@@ -154,7 +173,6 @@ export class CallManager {
         this.app.audioManager.playDialTone();
         
         setTimeout(() => {
-            // Simulate scenarios
             const scenarios = ['ring', 'ring', 'ring', 'no_answer', 'ring'];
             const scenario = scenarios[Math.floor(Math.random() * scenarios.length)];
             
@@ -182,7 +200,6 @@ export class CallManager {
         this.updateCallStatus('Ringing...');
         this.app.audioManager.playRingTone();
         
-        // Add call animation
         document.getElementById('callAnimation').classList.add('active');
         
         setTimeout(() => {
@@ -222,13 +239,13 @@ export class CallManager {
             return this.generateWarmupMessage(character);
         }
         
+        // CRITICAL FIX: Different welcome messages based on module and conversation state
+        if (currentModule === 'opener') {
+            // Opener module: Start with natural greeting, expect opener
+            return this.generateOpenerWelcomeMessage(character);
+        }
+        
         const welcomeMessages = {
-            opener: [
-                `Hello, this is ${character.name}. I'm quite busy, so make this quick.`,
-                `${character.name} speaking. What do you want?`,
-                `This is ${character.name}. I don't have much time, what's this about?`,
-                `${character.name} here. I wasn't expecting a call.`
-            ],
             pitch: [
                 `Hi, this is ${character.name}. Go ahead with your pitch.`,
                 `${character.name} speaking. I'll give you two minutes, what's your pitch?`,
@@ -253,8 +270,20 @@ export class CallManager {
         return messages[Math.floor(Math.random() * messages.length)];
     }
     
+    // CRITICAL FIX: Opener module welcome message
+    generateOpenerWelcomeMessage(character) {
+        const openerGreetings = [
+            `Hello, this is ${character.name}.`,
+            `${character.name} speaking.`,
+            `This is ${character.name}, how can I help you?`,
+            `${character.name} here.`,
+            `Hello, ${character.name} speaking. Who is this?`
+        ];
+        
+        return openerGreetings[Math.floor(Math.random() * openerGreetings.length)];
+    }
+    
     generateWarmupMessage(character) {
-        // Phase 2 E1: Complete set of 25 warmup questions
         const warmupPrompts = [
             "Give me your opener.",
             "What's your pitch in one sentence?",
@@ -283,7 +312,6 @@ export class CallManager {
             "Handle this objection: 'We already use a competitor.'"
         ];
         
-        // Shuffle questions for randomness
         if (this.warmupQuestions.length === 0) {
             this.warmupQuestions = [...warmupPrompts].sort(() => Math.random() - 0.5);
         }
@@ -294,27 +322,157 @@ export class CallManager {
         return `Welcome to warm-up training! I'm ${character.name}. Question ${questionNumber} of 25: ${currentQuestion}`;
     }
     
-    handleSuccessfulInteraction() {
+    // CRITICAL FIX: Enhanced handleSuccessfulInteraction with conversation flow logic
+    handleSuccessfulInteraction(userInput, aiResponse) {
+        const currentModule = this.app.getCurrentModule();
+        
+        // Handle different modules differently
+        if (currentModule === 'warmup') {
+            this.handleWarmupInteraction();
+        } else if (currentModule === 'opener') {
+            this.handleOpenerFlowInteraction(userInput, aiResponse);
+        } else {
+            this.handleStandardInteraction();
+        }
+    }
+    
+    // CRITICAL FIX: Handle opener flow progression
+    handleOpenerFlowInteraction(userInput, aiResponse) {
+        const currentMode = this.app.getCurrentMode();
+        
+        console.log('🔄 Opener Flow - Current State:', this.conversationState);
+        console.log('🔄 User Input:', userInput);
+        console.log('🔄 AI Response:', aiResponse);
+        
+        // Analyze what stage we're in based on the conversation
+        if (currentMode === 'practice') {
+            this.handleOpenerPracticeFlow(userInput, aiResponse);
+        } else if (currentMode === 'marathon') {
+            this.handleOpenerMarathonFlow(userInput, aiResponse);
+        }
+    }
+    
+    // CRITICAL FIX: Handle practice mode - complete flow
+    handleOpenerPracticeFlow(userInput, aiResponse) {
+        // In practice mode, go through complete flow: opener → objection → pitch → meeting
+        
+        if (this.conversationState.stage === 'opener' && !this.conversationState.openerDelivered) {
+            // User just delivered opener, AI should give objection
+            this.conversationState.openerDelivered = true;
+            this.conversationState.stage = 'objection';
+            console.log('✅ Opener delivered, moving to objection stage');
+            
+        } else if (this.conversationState.stage === 'objection' && !this.conversationState.objectionHandled) {
+            // User handled objection, now ask for pitch
+            this.conversationState.objectionHandled = true;
+            this.conversationState.stage = 'pitch';
+            console.log('✅ Objection handled, moving to pitch stage');
+            
+            // AI should ask for pitch
+            setTimeout(() => {
+                if (this.app.isInCall()) {
+                    this.app.speechManager.speakAI("Good response! Now give me your pitch.");
+                }
+            }, 1000);
+            
+        } else if (this.conversationState.stage === 'pitch' && !this.conversationState.pitchDelivered) {
+            // User delivered pitch, ask for meeting
+            this.conversationState.pitchDelivered = true;
+            this.conversationState.stage = 'meeting';
+            console.log('✅ Pitch delivered, moving to meeting stage');
+            
+            // AI should respond to pitch and allow meeting ask
+            setTimeout(() => {
+                if (this.app.isInCall()) {
+                    this.app.speechManager.speakAI("Interesting. What exactly are you proposing?");
+                }
+            }, 1000);
+            
+        } else if (this.conversationState.stage === 'meeting' && !this.conversationState.meetingRequested) {
+            // User asked for meeting, complete the practice
+            this.conversationState.meetingRequested = true;
+            this.conversationState.stage = 'complete';
+            console.log('✅ Meeting requested, practice complete');
+            
+            // Complete the practice session
+            setTimeout(() => {
+                if (this.app.isInCall()) {
+                    this.app.speechManager.speakAI("Alright, let me check my calendar. Good work on that complete flow!");
+                    setTimeout(() => {
+                        this.completeCurrentCall();
+                    }, 2000);
+                }
+            }, 1000);
+        }
+    }
+    
+    // CRITICAL FIX: Handle marathon mode - objection practice
+    handleOpenerMarathonFlow(userInput, aiResponse) {
+        // In marathon mode, focus on opener + objection handling (multiple objections)
         this.app.setCurrentProgress(this.app.getCurrentProgress() + 1);
         
-        const currentModule = this.app.getCurrentModule();
         const currentProgress = this.app.getCurrentProgress();
         const maxProgress = this.app.getMaxProgress();
         
-        console.log(`✅ Progress: ${currentProgress}/${maxProgress} in ${this.app.getCurrentMode()} mode`);
+        console.log(`✅ Marathon Progress: ${currentProgress}/${maxProgress}`);
         
-        if (currentModule === 'warmup') {
-            this.correctAnswers++;
-            this.handleWarmupProgress();
+        this.updateCallProgress();
+        
+        if (currentProgress >= maxProgress) {
+            console.log(`🎯 Marathon complete!`);
+            this.completeCurrentCall();
         } else {
-            this.updateCallProgress();
-            
-            if (currentProgress >= maxProgress) {
-                console.log(`🎯 Reached max progress - completing ${this.app.getCurrentMode()} mode`);
-                this.completeCurrentCall();
-            } else {
-                this.showQuickSuccess();
-            }
+            this.showQuickSuccess();
+            // Continue with next objection
+            setTimeout(() => {
+                if (this.app.isInCall()) {
+                    this.generateNextMarathonObjection();
+                }
+            }, 2000);
+        }
+    }
+    
+    // CRITICAL FIX: Generate next objection for marathon mode
+    generateNextMarathonObjection() {
+        const objections = [
+            "What's this about?",
+            "I'm not interested.",
+            "We don't take cold calls.",
+            "Now is not a good time.",
+            "I have a meeting.",
+            "Can you call me later?",
+            "Send me an email.",
+            "Who gave you this number?",
+            "What are you trying to sell me?",
+            "Is this a sales call?",
+            "We are ok for the moment.",
+            "We're not looking for anything.",
+            "How long is this going to take?",
+            "What company are you calling from?",
+            "I never heard of you."
+        ];
+        
+        const randomObjection = objections[Math.floor(Math.random() * objections.length)];
+        this.app.speechManager.speakAI(`Handle this objection: "${randomObjection}"`);
+    }
+    
+    handleWarmupInteraction() {
+        this.correctAnswers++;
+        this.handleWarmupProgress();
+    }
+    
+    handleStandardInteraction() {
+        this.app.setCurrentProgress(this.app.getCurrentProgress() + 1);
+        
+        const currentProgress = this.app.getCurrentProgress();
+        const maxProgress = this.app.getMaxProgress();
+        
+        this.updateCallProgress();
+        
+        if (currentProgress >= maxProgress) {
+            this.completeCurrentCall();
+        } else {
+            this.showQuickSuccess();
         }
     }
     
@@ -322,14 +480,11 @@ export class CallManager {
         const currentProgress = this.app.getCurrentProgress();
         const maxProgress = this.app.getMaxProgress();
         
-        // Phase 2 E1: Update live score counter
         this.updateWarmupProgress();
         
         if (currentProgress >= maxProgress) {
-            // Warmup complete - check score
             this.completeWarmupChallenge();
         } else {
-            // Continue to next question
             this.showQuickSuccess();
             setTimeout(() => {
                 if (this.app.isInCall()) {
@@ -339,26 +494,22 @@ export class CallManager {
         }
     }
     
-    // Phase 2 E1: Enhanced warmup progress display
     updateWarmupProgress() {
         const currentProgress = this.app.getCurrentProgress();
-        const totalQuestions = 25; // Phase 2 E1: Fixed to 25 questions
+        const totalQuestions = 25;
         const score = this.correctAnswers;
         
-        // Update progress bar
         const progressPercent = (currentProgress / totalQuestions) * 100;
         const progressFill = document.getElementById('callProgressFill');
         if (progressFill) {
             progressFill.style.width = `${progressPercent}%`;
         }
         
-        // Phase 2 E1: Live score counter format "correct/attempted"
         const progressText = document.getElementById('callProgressText');
         if (progressText) {
             progressText.textContent = `${score}/${currentProgress}`;
         }
         
-        // Update voice status with current score
         this.app.speechManager.updateVoiceStatus(`Score: ${score}/${currentProgress} | Question ${currentProgress + 1}/25`);
         
         console.log(`📊 Warmup Progress: ${score}/${currentProgress} (${progressPercent.toFixed(1)}%)`);
@@ -367,10 +518,9 @@ export class CallManager {
     completeWarmupChallenge() {
         const module = this.app.moduleManager.modules.warmup;
         const score = this.correctAnswers;
-        const passingScore = module.passingScore; // 18/25 needed to pass
+        const passingScore = module.passingScore;
         const totalQuestions = this.app.getCurrentProgress();
         
-        // Set the score as current progress for saving
         this.app.setCurrentProgress(score);
         
         const passed = score >= passingScore;
@@ -398,25 +548,20 @@ export class CallManager {
         }
     }
     
-    // Phase 2 E2: Handle timeout with proper progression
     handleTimeoutNext() {
         this.handleWarmupNext();
     }
     
-    // Phase 2 E2: Handle skip with proper progression
     handleSkipNext() {
         this.handleWarmupNext();
     }
     
-    // Phase 2 E2: Common method for moving to next question (timeout/skip)
     handleWarmupNext() {
-        // Move to next question without marking as correct
         this.app.setCurrentProgress(this.app.getCurrentProgress() + 1);
         
         const currentProgress = this.app.getCurrentProgress();
         const maxProgress = this.app.getMaxProgress();
         
-        // Update progress display
         this.updateWarmupProgress();
         
         if (currentProgress >= maxProgress) {
@@ -493,13 +638,11 @@ export class CallManager {
             this.callTimer = null;
         }
         
-        // Remove skip button if it exists
         const skipBtn = document.getElementById('skipQuestionBtn');
         if (skipBtn) {
             skipBtn.remove();
         }
         
-        // Track call duration
         if (this.app.callStartTime) {
             const callDuration = Date.now() - this.app.callStartTime;
             this.app.totalPracticeTime += callDuration;
@@ -520,7 +663,8 @@ export class CallManager {
             module: this.app.getCurrentModule(), 
             mode: this.app.getCurrentMode(), 
             progress: this.app.getCurrentProgress(),
-            completed 
+            completed,
+            conversationState: this.conversationState
         });
     }
     
@@ -534,7 +678,6 @@ export class CallManager {
         }
     }
     
-    // Phase 2 E2: Enhanced warmup summary with skip/timeout details
     showWarmupSummary() {
         const skipped = this.app.speechManager.getSkippedQuestions();
         const timeouts = this.app.speechManager.getTimeoutResponses();
@@ -554,7 +697,6 @@ export class CallManager {
             </div>
         `;
         
-        // Phase 2 E2: Show skipped questions summary
         if (skipped.length > 0) {
             summaryContent += `
                 <div style="margin-bottom: 15px; text-align: left;">
@@ -566,7 +708,6 @@ export class CallManager {
             `;
         }
         
-        // Phase 2 E2: Show timeout questions summary
         if (timeouts.length > 0) {
             summaryContent += `
                 <div style="margin-bottom: 15px; text-align: left;">
@@ -578,7 +719,6 @@ export class CallManager {
             `;
         }
         
-        // Performance breakdown
         const correctAnswered = score;
         const incorrectAnswered = totalQuestions - score - skipped.length - timeouts.length;
         
@@ -644,22 +784,17 @@ export class CallManager {
     // Call control methods
     toggleMute() {
         console.log('🔇 Mute toggled');
-        // Implementation for mute functionality
     }
     
     toggleSpeaker() {
         console.log('🔊 Speaker toggled');
-        // Implementation for speaker functionality
     }
     
     showKeypad() {
         console.log('⌨️ Keypad shown');
-        // Implementation for keypad functionality
     }
     
-    // Hangup functionality for all roleplays
     addHangupButton() {
-        // Ensure hangup button is properly positioned within phone boundaries
         const hangupBtn = document.querySelector('.decline-btn');
         if (hangupBtn) {
             hangupBtn.style.position = 'relative';
@@ -669,7 +804,6 @@ export class CallManager {
     
     handleHangup() {
         if (this.app.isInCall()) {
-            // Provide AI coaching based on current performance
             this.provideHangupCoaching();
             this.endCall(false);
         }
@@ -683,7 +817,15 @@ export class CallManager {
         
         switch (currentModule) {
             case 'opener':
-                coachingMessage += "Focus on your opening line and handling early objections. Practice building rapport quickly.";
+                if (this.conversationState.stage === 'opener') {
+                    coachingMessage += "Work on your opening line. Introduce yourself clearly with your name, company, and reason for calling.";
+                } else if (this.conversationState.stage === 'objection') {
+                    coachingMessage += "Good opener! Now focus on objection handling. Show empathy, don't argue, and ask questions to move forward.";
+                } else if (this.conversationState.stage === 'pitch') {
+                    coachingMessage += "Great objection handling! Work on delivering a concise, benefit-focused pitch.";
+                } else {
+                    coachingMessage += "You're doing well with the flow. Practice asking for specific meeting times.";
+                }
                 break;
             case 'pitch':
                 coachingMessage += "Work on your pitch delivery and objection handling. Make sure to ask for the meeting.";
