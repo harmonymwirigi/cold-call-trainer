@@ -432,45 +432,77 @@ export class ModuleManager {
         }
     }
     
-    completeModule(moduleId, mode) {
-        const module = this.modules[moduleId];
-        if (!module) return;
+    
+async completeModule(moduleId, mode) {
+    const module = this.modules[moduleId];
+    if (!module) return;
+    
+    console.log(`🎯 Completing module: ${moduleId} in ${mode} mode`);
+    
+    if (mode === 'marathon') {
+        module.marathonCompleted = true;
+        module.legendAvailable = true;
         
-        console.log(`🎯 Completing module: ${moduleId} in ${mode} mode`);
+        // Unlock next module via backend
+        await this.unlockNextModuleViaBackend(moduleId);
+        this.showMarathonCompletionModal(module);
         
-        if (mode === 'marathon') {
-            module.marathonCompleted = true;
-            module.legendAvailable = true;
-            
-            this.unlockNextModule(moduleId);
-            this.showMarathonCompletionModal(module);
-            
-        } else if (mode === 'legend') {
-            module.legendCompleted = true;
-            this.app.uiManager.showSuccess(`🏆 Legend Mode completed! You're a master of ${module.name}!`);
-            
-        } else if (mode === 'practice') {
-            if (moduleId === 'warmup') {
-                const score = this.app.getCurrentProgress();
-                if (score >= module.passingScore) {
-                    this.unlockNextModule(moduleId);
-                    this.showWarmupPassModal(score, module.totalQuestions);
-                } else {
-                    this.app.uiManager.showError(`Challenge failed. Score: ${score}/${module.totalQuestions}. Need ${module.passingScore} to pass.`);
-                }
+    } else if (mode === 'legend') {
+        module.legendCompleted = true;
+        this.app.uiManager.showSuccess(`🏆 Legend Mode completed! You're a master of ${module.name}!`);
+        
+    } else if (mode === 'practice') {
+        if (moduleId === 'warmup') {
+            const score = this.app.getCurrentProgress();
+            if (score >= module.passingScore) {
+                await this.unlockNextModuleViaBackend(moduleId);
+                this.showWarmupPassModal(score, module.totalQuestions);
             } else {
-                this.unlockNextModule(moduleId);
-                this.showPracticeCompletionModal(module);
+                this.app.uiManager.showError(`Challenge failed. Score: ${score}/${module.totalQuestions}. Need ${module.passingScore} to pass.`);
+            }
+        } else {
+            await this.unlockNextModuleViaBackend(moduleId);
+            this.showPracticeCompletionModal(module);
+        }
+    }
+    
+    this.updateModuleProgress(moduleId, mode);
+    this.app.progressManager.saveProgress();
+    this.app.uiManager.updateModuleUI();
+    this.app.uiManager.updateProgressStats();
+    
+    this.app.logActivity('module_completed', { module: moduleId, mode });
+}
+
+// Add this new method to ModuleManager:
+async unlockNextModuleViaBackend(moduleId) {
+    const moduleOrder = ['opener', 'pitch', 'warmup', 'fullcall', 'powerhour'];
+    const currentIndex = moduleOrder.indexOf(moduleId);
+    
+    if (currentIndex >= 0 && currentIndex < moduleOrder.length - 1) {
+        const nextModuleId = moduleOrder[currentIndex + 1];
+        const user = this.app.getCurrentUser();
+        
+        if (user?.access_level === 'unlimited_locked' || user?.access_level === 'limited') {
+            // Use backend unlock system
+            const success = await this.app.userManager.unlockModuleTemporarily(
+                nextModuleId, 
+                'progression'
+            );
+            
+            if (success) {
+                console.log(`🔓 Backend unlocked: ${nextModuleId}`);
+            }
+        } else {
+            // Unlimited users get immediate access
+            const nextModule = this.modules[nextModuleId];
+            if (nextModule) {
+                nextModule.unlocked = true;
+                console.log(`🔓 Immediately unlocked: ${nextModuleId}`);
             }
         }
-        
-        this.updateModuleProgress(moduleId, mode);
-        this.app.progressManager.saveProgress();
-        this.app.uiManager.updateModuleUI();
-        this.app.uiManager.updateProgressStats();
-        
-        this.app.logActivity('module_completed', { module: moduleId, mode });
     }
+}
     
     // ENHANCED: Better completion modals
     showMarathonCompletionModal(module) {

@@ -435,29 +435,80 @@ export class SpeechManager {
     
     // CRITICAL FIX: Handle opener module progression
     handleOpenerProgression(userInput, parsedResponse, confidence) {
-        const currentMode = this.app.getCurrentMode();
-        
-        // Analyze user input to determine what they said
-        const inputAnalysis = this.analyzeUserInput(userInput);
-        
-        console.log('🔄 Opener Analysis:', inputAnalysis);
-        
-        // For practice mode: progression through complete flow
-        if (currentMode === 'practice') {
-            if (inputAnalysis.type === 'opener' || inputAnalysis.type === 'objection_response' || 
-                inputAnalysis.type === 'pitch' || inputAnalysis.type === 'meeting_request') {
-                
-                // Pass the analysis to call manager for flow control
-                this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
-            }
-        } 
-        // For marathon mode: objection handling practice
-        else if (currentMode === 'marathon') {
-            if (inputAnalysis.type === 'opener' || inputAnalysis.type === 'objection_response') {
-                this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
-            }
+    const currentMode = this.app.getCurrentMode();
+    const conversationState = this.app.callManager.conversationState;
+    
+    console.log('🔄 Opener Flow:', {
+        currentStage: conversationState.stage,
+        userInput: userInput.substring(0, 50) + '...',
+        mode: currentMode
+    });
+    
+    // Analyze user input intent
+    const inputAnalysis = this.analyzeUserInput(userInput);
+    
+    if (currentMode === 'practice') {
+        // Enhanced practice mode flow
+        if (conversationState.stage === 'opener' && inputAnalysis.type === 'opener') {
+            // User delivered opener, trigger objection stage
+            console.log('✅ Opener detected, moving to objection stage');
+            this.app.callManager.conversationState.openerDelivered = true;
+            this.app.callManager.conversationState.stage = 'objection';
+            
+            // AI should respond with objection in next interaction
+            this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
+            
+        } else if (conversationState.stage === 'objection' && inputAnalysis.type === 'objection_response') {
+            // User handled objection, move to pitch stage
+            console.log('✅ Objection handled, moving to pitch stage');
+            this.app.callManager.conversationState.objectionHandled = true;
+            this.app.callManager.conversationState.stage = 'pitch';
+            this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
+            
+        } else if (conversationState.stage === 'pitch' && inputAnalysis.type === 'pitch') {
+            // User delivered pitch, move to meeting stage
+            console.log('✅ Pitch delivered, moving to meeting stage');
+            this.app.callManager.conversationState.pitchDelivered = true;
+            this.app.callManager.conversationState.stage = 'meeting';
+            this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
+            
+        } else if (conversationState.stage === 'meeting' && inputAnalysis.type === 'meeting_request') {
+            // User requested meeting, complete the flow
+            console.log('✅ Meeting requested, completing practice flow');
+            this.app.callManager.conversationState.meetingRequested = true;
+            this.app.callManager.conversationState.stage = 'complete';
+            this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
+            
+        } else {
+            // User input doesn't match expected stage, provide guidance
+            this.provideStageGuidance(conversationState.stage, inputAnalysis.type);
+        }
+    } else if (currentMode === 'marathon') {
+        // Marathon mode - any reasonable response progresses
+        if (inputAnalysis.type === 'opener' || inputAnalysis.type === 'objection_response') {
+            this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
         }
     }
+}
+provideStageGuidance(expectedStage, actualType) {
+    const guidance = {
+        opener: "Start with your opener - introduce yourself with your name, company, and reason for calling.",
+        objection: "Handle the objection I just gave you. Show empathy and ask a question to move forward.",
+        pitch: "Now deliver your pitch. Focus on the value and benefits you can provide.",
+        meeting: "Ask for a meeting. Suggest specific times and be ready to negotiate."
+    };
+    
+    const message = guidance[expectedStage] || "Continue with the conversation flow.";
+    this.app.speechManager.updateVoiceStatus(`💡 Tip: ${message}`);
+    
+    // Don't progress the conversation, let them try again
+    setTimeout(() => {
+        if (this.app.isInCall() && this.continuousListening) {
+            this.startListening();
+        }
+    }, 3000);
+}
+
     
     // CRITICAL FIX: Analyze user input to understand intent
     analyzeUserInput(input) {

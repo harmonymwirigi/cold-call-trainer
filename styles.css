@@ -92,11 +92,6 @@ body {
     padding: 8px 16px;
 }
 
-.btn-marathon {
-    background: linear-gradient(135deg, #fd7e14 0%, #e55a00 100%);
-    font-size: 0.85rem;
-    padding: 8px 16px;
-}
 
 .btn-legend {
     background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
@@ -1356,3 +1351,352 @@ body {
     }
 }
 
+/* ADDITIONAL CSS IMPROVEMENTS FOR REQUIREMENTS */
+
+/* 1. Marathon Button Text Centering Fix */
+.btn-marathon {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+/* Ensure marathon button text doesn't overflow */
+.btn-marathon span {
+    display: block;
+    width: 100%;
+    text-align: center;
+}
+
+/* 2. Legend Button Hiding (when needed) */
+.btn-legend.hidden {
+    display: none !important;
+}
+
+/* 3. Access Level Visual Indicators */
+.module-card.unlimited {
+    border-left: 4px solid #4CAF50;
+}
+
+.module-card.unlimited_locked {
+    border-left: 4px solid #ff9800;
+}
+
+.module-card.limited {
+    border-left: 4px solid #f44336;
+}
+
+.access-indicator {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.access-indicator.unlimited {
+    background: #4CAF50;
+}
+
+.access-indicator.unlimited_locked {
+    background: #ff9800;
+}
+
+.access-indicator.limited {
+    background: #f44336;
+}
+
+/* 4. Enhanced Warm-up Summary Styling */
+.warmup-summary {
+    background: white;
+    border-radius: 15px;
+    padding: 25px;
+    margin: 20px auto;
+    max-width: 500px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
+
+.warmup-summary h3 {
+    color: #2d3748;
+    margin-bottom: 20px;
+    text-align: center;
+    font-size: 1.5rem;
+}
+
+.summary-score {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.summary-score .score-display {
+    font-size: 3rem;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.summary-score .score-display.passed {
+    color: #4CAF50;
+}
+
+.summary-score .score-display.failed {
+    color: #f44336;
+}
+
+.summary-breakdown {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.summary-breakdown h4 {
+    color: #495057;
+    margin-bottom: 10px;
+    font-size: 1.1rem;
+}
+
+.summary-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.summary-list li {
+    padding: 5px 0;
+    border-bottom: 1px solid #e9ecef;
+    font-size: 0.9rem;
+}
+
+.summary-list li:last-child {
+    border-bottom: none;
+}
+
+.summary-list li .question-number {
+    font-weight: 600;
+    color: #667eea;
+}
+
+/* 5. Better Custom Behavior Field Styling */
+.custom-behavior-field {
+    position: relative;
+}
+
+.character-counter {
+    position: absolute;
+    bottom: 8px;
+    right: 12px;
+    font-size: 0.75rem;
+    color: #6c757d;
+    background: rgba(255,255,255,0.9);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.character-counter.warning {
+    color: #ffc107;
+}
+
+.character-counter.danger {
+    color: #dc3545;
+}
+
+/* 6. Industry and Job Title Dropdown Enhancements */
+.prospect-fields .form-group {
+    position: relative;
+}
+
+.prospect-fields select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 12px center;
+    background-repeat: no-repeat;
+    background-size: 16px;
+    padding-right: 40px;
+    appearance: none;
+}
+
+/* 7. Enhanced Module Progress Indicators */
+.module-progress .progress-bar {
+    position: relative;
+    overflow: visible;
+}
+
+.module-progress .progress-fill {
+    position: relative;
+}
+
+.module-progress .progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    animation: progressShine 2s infinite;
+}
+
+@keyframes progressShine {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* 8. Better 24-Hour Unlock Indicators */
+.unlock-timer {
+    font-size: 0.8rem;
+    color: #ff9800;
+    font-weight: 600;
+    text-align: center;
+    margin-top: 5px;
+}
+
+.unlock-timer .time-remaining {
+    background: rgba(255, 152, 0, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 152, 0, 0.3);
+}
+
+/* 9. Practice Mode Flow Indicators */
+.conversation-stage {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.conversation-stage.opener {
+    background: #17a2b8;
+}
+
+.conversation-stage.objection {
+    background: #ffc107;
+    color: #333;
+}
+
+.conversation-stage.pitch {
+    background: #28a745;
+}
+
+.conversation-stage.meeting {
+    background: #dc3545;
+}
+
+/* 10. Enhanced Loading States */
+.verification-form.loading {
+    position: relative;
+    overflow: hidden;
+}
+
+.verification-form.loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1), transparent);
+    animation: loadingSweep 1.5s infinite;
+}
+
+@keyframes loadingSweep {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* 11. Mobile Responsiveness Improvements */
+@media (max-width: 480px) {
+    .btn-marathon {
+        font-size: 0.75rem !important;
+        padding: 6px 12px !important;
+    }
+    
+    .access-indicator {
+        font-size: 0.6rem;
+        padding: 1px 4px;
+    }
+    
+    .warmup-summary {
+        margin: 10px;
+        padding: 20px;
+    }
+    
+    .summary-score .score-display {
+        font-size: 2.5rem;
+    }
+    
+    .conversation-stage {
+        font-size: 0.6rem;
+        padding: 2px 6px;
+    }
+}
+
+/* 12. Dark Mode Enhancements */
+@media (prefers-color-scheme: dark) {
+    .warmup-summary {
+        background: #2d3748;
+        color: #e2e8f0;
+    }
+    
+    .summary-breakdown {
+        background: #4a5568;
+    }
+    
+    .character-counter {
+        background: rgba(45, 55, 72, 0.9);
+        color: #a0aec0;
+    }
+}
+
+/* 13. High Contrast Accessibility */
+@media (prefers-contrast: high) {
+    .access-indicator,
+    .conversation-stage,
+    .unlock-timer .time-remaining {
+        border: 2px solid currentColor;
+    }
+    
+    .module-progress .progress-fill {
+        border: 1px solid #333;
+    }
+}
+
+/* 14. Reduced Motion Accessibility */
+@media (prefers-reduced-motion: reduce) {
+    .module-progress .progress-fill::after,
+    .verification-form.loading::after {
+        animation: none;
+    }
+}
+
+/* 15. Print Styles */
+@media print {
+    .warmup-summary {
+        break-inside: avoid;
+        box-shadow: none;
+        border: 1px solid #333;
+    }
+    
+    .access-indicator,
+    .conversation-stage {
+        color: #000 !important;
+        background: #fff !important;
+        border: 1px solid #000 !important;
+    }
+}
+.btn-legend,
+.btn-legend.hidden {
+    display: none !important;
+}

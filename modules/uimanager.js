@@ -58,32 +58,39 @@ export class UIManager {
         }
         
         const jobTitles = [
-            'Brand/Communications Manager',
-            'CEO (Chief Executive Officer)',
-            'CFO (Chief Financial Officer)', 
-            'CIO (Chief Information Officer)',
-            'CMO (Chief Marketing Officer)',
-            'COO (Chief Operating Officer)',
-            'Content Marketing Manager',
-            'CTO (Chief Technology Officer)',
-            'Customer Success Manager',
-            'Demand Generation Manager',
-            'Digital Marketing Manager',
-            'Director of Operations',
-            'Engineering Manager',
-            'Finance Director',
-            'Founder / Owner / Managing Director (MD)',
-            'Head of Product',
-            'Head of Sales',
-            'IT Director',
-            'Marketing Director',
-            'Operations Manager',
-            'Product Manager',
-            'Purchasing Manager',
-            'R&D/Product Development Manager',
-            'Sales Manager',
-            'Sales Operations Manager'
-        ];
+    'Brand/Communications Manager',
+    'CEO (Chief Executive Officer)',
+    'CFO (Chief Financial Officer)', 
+    'CIO (Chief Information Officer)',
+    'CMO (Chief Marketing Officer)', // ← ADDED
+    'COO (Chief Operating Officer)',
+    'Content Marketing Manager',
+    'CTO (Chief Technology Officer)',
+    'Customer Success Manager',
+    'Demand Generation Manager',
+    'Digital Marketing Manager',
+    'Director of Operations',
+    'Engineering Manager',
+    'Finance Director',
+    'Founder / Owner / Managing Director (MD)',
+    'Head of Product',
+    'Head of Sales',
+    'IT Director',
+    'Marketing Director',
+    'Operations Manager',
+    'Product Manager',
+    'Purchasing Manager',
+    'R&D/Product Development Manager',
+    'Sales Manager',
+    'Sales Operations Manager',
+    'Social Media Manager', // ← ADDED
+    'UX/UI Design Lead', // ← ADDED
+    'VP of Finance', // ← ADDED
+    'VP of HR', // ← ADDED
+    'VP of IT/Engineering', // ← ADDED
+    'VP of Marketing', // ← ADDED
+    'VP of Sales' // ← ADDED
+];
         
         jobTitleSelect.id = 'prospectJobTitle';
         
@@ -463,6 +470,7 @@ export class UIManager {
         // Hide legend button (as per requirements)
         if (legendBtn) {
             legendBtn.style.display = 'none';
+            legendBtn.classList.add('hidden');
         }
         
         // Add unlock animation

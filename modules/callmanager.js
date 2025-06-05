@@ -804,66 +804,135 @@ export class CallManager {
         const passingScore = 18;
         
         let summaryContent = `
-            <div style="text-align: center; margin-bottom: 20px;">
-                <div style="font-size: 2rem; font-weight: bold; color: ${score >= passingScore ? '#4CAF50' : '#f44336'};">
-                    ${score}/${totalQuestions}
+            <div class="warmup-summary">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <div class="summary-score">
+                        <div class="score-display ${score >= passingScore ? 'passed' : 'failed'}">
+                            ${score}/${totalQuestions}
+                        </div>
+                        <div style="margin-bottom: 10px;">Questions Answered Correctly</div>
+                        <div style="font-size: 0.9rem; color: #6c757d;">
+                            ${score >= passingScore ? '🎉 PASSED' : '❌ FAILED'} (Need ${passingScore}/25 to pass)
+                        </div>
+                    </div>
                 </div>
-                <div style="margin-bottom: 10px;">Questions Answered Correctly</div>
-                <div style="font-size: 0.9rem; color: #6c757d;">
-                    ${score >= passingScore ? '🎉 PASSED' : '❌ FAILED'} (Need ${passingScore}/25 to pass)
-                </div>
-            </div>
         `;
         
-        if (skipped.length > 0) {
-            summaryContent += `
-                <div style="margin-bottom: 15px; text-align: left;">
-                    <strong>⏭️ Skipped Questions (${skipped.length}):</strong>
-                    <ul style="margin-top: 5px; padding-left: 20px;">
-                        ${skipped.map(q => `<li>Question ${q.questionNumber}</li>`).join('')}
-                    </ul>
-                </div>
-            `;
-        }
-        
-        if (timeouts.length > 0) {
-            summaryContent += `
-                <div style="margin-bottom: 15px; text-align: left;">
-                    <strong>⏰ Too Slow Responses (${timeouts.length}):</strong>
-                    <ul style="margin-top: 5px; padding-left: 20px;">
-                        ${timeouts.map(t => `<li>Question ${t.questionNumber}</li>`).join('')}
-                    </ul>
-                </div>
-            `;
-        }
-        
+        // Performance breakdown
         const correctAnswered = score;
         const incorrectAnswered = totalQuestions - score - skipped.length - timeouts.length;
         
         if (totalQuestions > 0) {
             summaryContent += `
-                <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; text-align: left;">
-                    <strong>📊 Performance Breakdown:</strong>
+                <div class="summary-breakdown">
+                    <h4>📊 Performance Breakdown:</h4>
                     <div style="margin-top: 10px;">
-                        <div>✅ Correct: ${correctAnswered}</div>
-                        <div>❌ Incorrect: ${Math.max(0, incorrectAnswered)}</div>
-                        <div>⏭️ Skipped: ${skipped.length}</div>
-                        <div>⏰ Too Slow: ${timeouts.length}</div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                            <span>✅ Correct:</span> <span style="font-weight: 600; color: #4CAF50;">${correctAnswered}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                            <span>❌ Incorrect:</span> <span style="font-weight: 600; color: #f44336;">${Math.max(0, incorrectAnswered)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                            <span>⏭️ Skipped:</span> <span style="font-weight: 600; color: #ff9800;">${skipped.length}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>⏰ Too Slow:</span> <span style="font-weight: 600; color: #9c27b0;">${timeouts.length}</span>
+                        </div>
                     </div>
                 </div>
             `;
         }
         
+        // Detailed skipped questions
+        if (skipped.length > 0) {
+            summaryContent += `
+                <div class="summary-breakdown">
+                    <h4>⏭️ Skipped Questions (${skipped.length}):</h4>
+                    <ul class="summary-list">
+                        ${skipped.map(q => `
+                            <li>
+                                <span class="question-number">Q${q.questionNumber}:</span> 
+                                ${q.questionText || `Question ${q.questionNumber}`}
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+        
+        // Detailed timeout questions  
+        if (timeouts.length > 0) {
+            summaryContent += `
+                <div class="summary-breakdown">
+                    <h4>⏰ Too Slow Responses (${timeouts.length}):</h4>
+                    <ul class="summary-list">
+                        ${timeouts.map(t => `
+                            <li>
+                                <span class="question-number">Q${t.questionNumber}:</span> 
+                                ${t.questionText || `Question ${t.questionNumber}`}
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+        
+        // Performance recommendations
+        summaryContent += `
+            <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; border-left: 4px solid #2196F3;">
+                <strong>💡 Recommendations:</strong><br>
+                ${this.generateWarmupRecommendations(score, skipped.length, timeouts.length, totalQuestions)}
+            </div>
+        `;
+        
         const passed = score >= passingScore;
         if (passed) {
-            summaryContent += `<div style="color: #4CAF50; font-weight: bold; text-align: center; font-size: 1.1rem;">🎉 Challenge Passed! Next module unlocked.</div>`;
+            summaryContent += `
+                <div style="color: #4CAF50; font-weight: bold; text-align: center; font-size: 1.1rem; margin-top: 15px;">
+                    🎉 Challenge Passed! Next module unlocked.
+                </div>
+            `;
         } else {
-            summaryContent += `<div style="color: #f44336; font-weight: bold; text-align: center; font-size: 1.1rem;">Need ${passingScore}/25 to pass. Try again!</div>`;
+            summaryContent += `
+                <div style="color: #f44336; font-weight: bold; text-align: center; font-size: 1.1rem; margin-top: 15px;">
+                    Need ${passingScore}/25 to pass. Try again!
+                </div>
+            `;
         }
+        
+        summaryContent += `</div>`;
         
         this.app.uiManager.showFeedbackModal('Warm-up Challenge Complete', summaryContent);
     }
-    
+    generateWarmupRecommendations(score, skippedCount, timeoutCount, total) {
+        const recommendations = [];
+        
+        if (score < 10) {
+            recommendations.push("Focus on learning the basic cold calling fundamentals first");
+        } else if (score < 15) {
+            recommendations.push("Practice your objection handling responses");
+        } else if (score < 18) {
+            recommendations.push("You're close! Review your pitch and meeting request techniques");
+        } else {
+            recommendations.push("Excellent fundamentals! You're ready for advanced challenges");
+        }
+        
+        if (skippedCount > 5) {
+            recommendations.push("Try to answer more questions instead of skipping - it builds confidence");
+        }
+        
+        if (timeoutCount > 5) {
+            recommendations.push("Work on responding faster - practice makes your responses more natural");
+        }
+        
+        if (skippedCount === 0 && timeoutCount === 0) {
+            recommendations.push("Perfect completion! You answered every question within the time limit");
+        }
+        
+        return recommendations.join(". ");
+    }
+
     showCompletionMessage() {
         const module = this.app.moduleManager.modules[this.app.getCurrentModule()];
         const mode = this.app.getCurrentMode();

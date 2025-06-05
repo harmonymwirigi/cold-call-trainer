@@ -645,29 +645,13 @@ export class UserManager {
         }
     }
     
-    hasAccessToModule(moduleId) {
-        const user = this.app.getCurrentUser();
-        if (!user) return false;
-        
-        // Check usage limits first
-        const hourlyUsage = this.usageTracking.sessionTime / (1000 * 60 * 60);
-        
-        switch (user.accessLevel) {
-            case this.accessLevels.UNLIMITED:
-                return hourlyUsage < 50; // All modules if under limit
-                
-            case this.accessLevels.UNLIMITED_LOCKED:
-                if (hourlyUsage >= 50) return false;
-                return moduleId === 'opener' || this.isTemporarilyUnlocked(moduleId);
-                
-            case this.accessLevels.LIMITED:
-                if (hourlyUsage >= 3) return false;
-                return moduleId === 'opener' || this.isPermanentlyUnlocked(moduleId);
-                
-            default:
-                return false;
-        }
-    }
+    async hasAccessToModule(moduleId) {
+    const user = this.app.getCurrentUser();
+    if (!user?.id) return false;
+    
+    // Use backend check for accurate access control
+    return await this.checkModuleAccess(moduleId);
+}
     
     isTemporarilyUnlocked(moduleId) {
         // This would be implemented with Supabase data
@@ -675,6 +659,76 @@ export class UserManager {
         return false;
     }
     
+async checkModuleAccess(moduleId) {
+    const user = this.app.getCurrentUser();
+    if (!user?.id) return false;
+    
+    try {
+        const response = await fetch('/api/check-module-access', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId: user.id,
+                moduleId: moduleId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            console.error('Access check failed:', data.error);
+            return false;
+        }
+        
+        if (!data.hasAccess && data.reason) {
+            this.app.uiManager.showWarning(data.reason);
+        }
+        
+        return data.hasAccess;
+        
+    } catch (error) {
+        console.error('Module access check error:', error);
+        return false;
+    }
+}
+
+async unlockModuleTemporarily(moduleId, unlockType = 'marathon_completion') {
+    const user = this.app.getCurrentUser();
+    if (!user?.id) return false;
+    
+    try {
+        const response = await fetch('/api/unlock-module-temporary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId: user.id,
+                moduleId: moduleId,
+                unlockType: unlockType
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            console.error('Unlock failed:', data.error);
+            this.app.uiManager.showError(data.error);
+            return false;
+        }
+        
+        this.app.uiManager.showSuccess(data.message);
+        
+        // Update UI to reflect new access
+        this.app.uiManager.updateModuleUI();
+        
+        return true;
+        
+    } catch (error) {
+        console.error('Module unlock error:', error);
+        this.app.uiManager.showError('Failed to unlock module. Please try again.');
+        return false;
+    }
+}
+
     isPermanentlyUnlocked(moduleId) {
         // This would be implemented with Supabase data
         // For now, return false
