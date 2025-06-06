@@ -10,12 +10,32 @@
       "maxDuration": 30
     }
   },
+  "headers": [
+    {
+      "source": "/(.*\\.(js|css|html))$",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        },
+        {
+          "key": "Pragma", 
+          "value": "no-cache"
+        },
+        {
+          "key": "Expires",
+          "value": "0"
+        }
+      ]
+    }
+  ],
   "routes": [
     {
       "src": "/modules/(.*)",
       "dest": "/modules/$1",
       "headers": {
-        "Content-Type": "application/javascript"
+        "Content-Type": "application/javascript",
+        "Cache-Control": "no-cache, no-store, must-revalidate"
       }
     },
     {

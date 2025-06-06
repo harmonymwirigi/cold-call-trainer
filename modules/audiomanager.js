@@ -46,58 +46,76 @@ export class AudioManager {
     }
     
     createWebAudioTone(frequencies, duration, loop = false) {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        
-        return {
-            play: () => {
-                try {
-                    const audioContext = new AudioContext();
-                    const oscillators = frequencies.map(freq => {
-                        const oscillator = audioContext.createOscillator();
-                        const gainNode = audioContext.createGain();
-                        
-                        oscillator.connect(gainNode);
-                        gainNode.connect(audioContext.destination);
-                        
-                        oscillator.frequency.setValueAtTime(freq, audioContext.currentTime);
-                        oscillator.type = 'sine';
-                        
-                        gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
-                        
-                        oscillator.start(audioContext.currentTime);
-                        
-                        if (!loop) {
-                            oscillator.stop(audioContext.currentTime + duration);
-                        }
-                        
-                        return { oscillator, gainNode, audioContext };
-                    });
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    
+    return {
+        play: () => {
+            try {
+                const audioContext = new AudioContext();
+                const oscillators = frequencies.map(freq => {
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
                     
-                    return {
-                        stop: () => {
-                            oscillators.forEach(({ oscillator, audioContext }) => {
-                                try {
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    
+                    oscillator.frequency.setValueAtTime(freq, audioContext.currentTime);
+                    oscillator.type = 'sine';
+                    
+                    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+                    
+                    oscillator.start(audioContext.currentTime);
+                    
+                    if (!loop) {
+                        oscillator.stop(audioContext.currentTime + duration);
+                    }
+                    
+                    return { oscillator, gainNode, audioContext };
+                });
+                
+                return {
+                    stop: () => {
+                        oscillators.forEach(({ oscillator, audioContext }) => {
+                            try {
+                                // Check if oscillator is still running
+                                if (oscillator.state !== 'ended') {
                                     oscillator.stop();
-                                    audioContext.close();
-                                } catch (e) {
-                                    // Oscillator might already be stopped
                                 }
-                            });
-                        },
-                        oscillators,
-                        audioContext
-                    };
-                } catch (error) {
-                    console.warn('Web Audio playback failed:', error);
-                    return { stop: () => {} };
-                }
-            },
-            pause: () => {},
-            currentTime: 0,
-            loop: loop
-        };
-    }
+                            } catch (e) {
+                                console.warn('Oscillator already stopped:', e);
+                            }
+                            
+                            try {
+                                // Only close if not already closed
+                                if (audioContext.state !== 'closed') {
+                                    audioContext.close().catch(err => {
+                                        console.warn('AudioContext close failed:', err);
+                                    });
+                                }
+                            } catch (e) {
+                                console.warn('AudioContext already closed:', e);
+                            }
+                        });
+                    },
+                    oscillators,
+                    audioContext: oscillators[0]?.audioContext
+                };
+            } catch (error) {
+                console.warn('Web Audio playback failed:', error);
+                return { 
+                    stop: () => {},
+                    oscillators: [],
+                    audioContext: null
+                };
+            }
+        },
+        pause: () => {},
+        currentTime: 0,
+        loop: loop
+    };
+}
+
     
     createSimpleAudioTone(type, frequencies, duration, loop = false) {
         const audio = new Audio();
@@ -163,92 +181,105 @@ export class AudioManager {
     }
     
     playDialTone() {
-        this.stopAudio();
-        if (this.audioElements.dial) {
-            try {
-                const audioResult = this.audioElements.dial.play();
-                this.activeAudio = audioResult;
-                console.log('🔊 Playing dial tone');
-            } catch (error) {
-                console.warn('Failed to play dial tone:', error);
-            }
+    this.stopAudio();
+    if (this.audioElements.dial) {
+        try {
+            const audioResult = this.audioElements.dial.play();
+            this.activeAudio = audioResult;
+            console.log('🔊 Playing dial tone');
+        } catch (error) {
+            console.warn('Failed to play dial tone:', error);
+            this.handleAudioError(error, 'dial tone playback');
         }
     }
+}
+
     
     // CRITICAL FIX: Improved ring tone with proper control
     playRingTone() {
-        this.stopAudio();
-        console.log('🔊 Starting ring tone');
-        
-        // Clear any existing ring interval
-        if (this.ringInterval) {
-            clearInterval(this.ringInterval);
-        }
-        
-        let ringCount = 0;
-        const maxRings = 6; // Limit to 6 rings (about 24 seconds)
-        
-        const playRing = () => {
-            if (ringCount >= maxRings) {
-                console.log('🔊 Ring tone stopped - max rings reached');
-                this.stopRingTone();
-                return;
-            }
-            
-            try {
-                if (this.audioElements.ring) {
-                    const audioResult = this.audioElements.ring.play();
-                    this.activeAudio = audioResult;
-                    ringCount++;
-                    console.log(`🔊 Ring ${ringCount}/${maxRings}`);
-                }
-            } catch (error) {
-                console.warn('Failed to play ring:', error);
-                this.stopRingTone();
-            }
-        };
-        
-        // Play first ring immediately
-        playRing();
-        
-        // Set interval for subsequent rings (every 4 seconds)
-        this.ringInterval = setInterval(playRing, 4000);
+    this.stopAudio();
+    console.log('🔊 Starting ring tone');
+    
+    // Clear any existing ring interval
+    if (this.ringInterval) {
+        clearInterval(this.ringInterval);
     }
     
-    // CRITICAL FIX: Dedicated method to stop ring tone
-    stopRingTone() {
-        console.log('🔊 Stopping ring tone');
+    let ringCount = 0;
+    const maxRings = 6;
+    
+    const playRing = () => {
+        if (ringCount >= maxRings) {
+            console.log('🔊 Ring tone stopped - max rings reached');
+            this.stopRingTone();
+            return;
+        }
         
-        if (this.ringInterval) {
+        try {
+            if (this.audioElements.ring) {
+                const audioResult = this.audioElements.ring.play();
+                this.activeAudio = audioResult;
+                ringCount++;
+                console.log(`🔊 Ring ${ringCount}/${maxRings}`);
+            }
+        } catch (error) {
+            console.warn('Failed to play ring:', error);
+            this.handleAudioError(error, 'ring tone playback');
+            this.stopRingTone();
+        }
+    };
+    
+    // Play first ring immediately
+    playRing();
+    
+    // Set interval for subsequent rings
+    this.ringInterval = setInterval(() => {
+        if (this.isRinging) {
+            playRing();
+        } else {
             clearInterval(this.ringInterval);
             this.ringInterval = null;
         }
-        
-        // Stop the active audio
-        if (this.activeAudio && typeof this.activeAudio.stop === 'function') {
-            try {
-                this.activeAudio.stop();
-            } catch (e) {
-                // Already stopped
-            }
-        }
-        
-        this.activeAudio = null;
+    }, 4000);
+}
+    
+    // CRITICAL FIX: Dedicated method to stop ring tone
+    stopRingTone() {
+    console.log('🔊 Stopping ring tone');
+    
+    if (this.ringInterval) {
+        clearInterval(this.ringInterval);
+        this.ringInterval = null;
     }
+    
+    // Stop the active audio safely
+    if (this.activeAudio) {
+        try {
+            if (typeof this.activeAudio.stop === 'function') {
+                this.activeAudio.stop();
+            }
+        } catch (e) {
+            console.warn('Error stopping active audio:', e);
+        } finally {
+            this.activeAudio = null;
+        }
+    }
+}
+
     
     playHangupTone() {
-        this.stopAudio();
-        if (this.audioElements.hangup) {
-            try {
-                const audioResult = this.audioElements.hangup.play();
-                this.activeAudio = audioResult;
-                console.log('🔊 Playing hangup tone');
-            } catch (error) {
-                console.warn('Failed to play hangup tone:', error);
-            }
+    this.stopAudio();
+    if (this.audioElements.hangup) {
+        try {
+            const audioResult = this.audioElements.hangup.play();
+            this.activeAudio = audioResult;
+            console.log('🔊 Playing hangup tone');
+        } catch (error) {
+            console.warn('Failed to play hangup tone:', error);
+            this.handleAudioError(error, 'hangup tone playback');
         }
     }
-    
+}
     playAISpeech(audioUrl, onEndCallback) {
         this.stopCurrentSpeech();
         
@@ -287,43 +318,43 @@ export class AudioManager {
     
     // CRITICAL FIX: Enhanced stopAudio method
     stopAudio() {
-        console.log('🔊 Stopping all audio');
-        
-        // Stop ring tone specifically
-        this.stopRingTone();
-        
-        // Stop other audio elements
-        Object.values(this.audioElements).forEach(audio => {
-            if (audio && audio !== this.audioElements.currentSpeech) { // Don't stop speech here
+    console.log('🔊 Stopping all audio');
+    
+    // Stop ring tone specifically
+    this.stopRingTone();
+    
+    // Stop other audio elements safely
+    Object.values(this.audioElements).forEach(audio => {
+        if (audio && audio !== this.audioElements.currentSpeech) {
+            try {
                 if (typeof audio.pause === 'function') {
-                    try {
-                        audio.pause();
+                    audio.pause();
+                    if (audio.currentTime !== undefined) {
                         audio.currentTime = 0;
-                    } catch (error) {
-                        console.warn('Failed to stop audio:', error);
                     }
                 } else if (typeof audio.stop === 'function') {
-                    try {
-                        audio.stop();
-                    } catch (error) {
-                        console.warn('Failed to stop Web Audio:', error);
-                    }
+                    audio.stop();
                 }
+            } catch (error) {
+                console.warn('Failed to stop audio element:', error);
             }
-        });
-        
-        // Stop active Web Audio
-        if (this.activeAudio) {
+        }
+    });
+    
+    // Stop active Web Audio safely
+    if (this.activeAudio) {
+        try {
             if (typeof this.activeAudio.stop === 'function') {
-                try {
-                    this.activeAudio.stop();
-                } catch (e) {
-                    // Already stopped
-                }
+                this.activeAudio.stop();
             }
+        } catch (e) {
+            console.warn('Failed to stop Web Audio:', e);
+        } finally {
             this.activeAudio = null;
         }
     }
+}
+
     
     setVolume(volume) {
         // Set volume for all audio elements (0.0 to 1.0)
@@ -476,29 +507,69 @@ export class AudioManager {
     
     // Cleanup and resource management
     cleanup() {
-        this.stopAudio();
-        this.stopRingTone();
-        
-        // Clean up Web Audio resources
-        if (this.audioContext) {
-            this.audioContext.close();
+    console.log('🧹 AudioManager cleanup starting...');
+    
+    // Stop all audio first
+    this.stopAudio();
+    this.stopRingTone();
+    
+    // Clear intervals
+    if (this.ringInterval) {
+        clearInterval(this.ringInterval);
+        this.ringInterval = null;
+    }
+    
+    // Clean up Web Audio resources safely
+    if (this.audioContext) {
+        try {
+            if (this.audioContext.state !== 'closed') {
+                this.audioContext.close().catch(err => {
+                    console.warn('AudioContext cleanup failed:', err);
+                });
+            }
+        } catch (e) {
+            console.warn('AudioContext already cleaned up:', e);
+        } finally {
             this.audioContext = null;
         }
-        
-        // Revoke object URLs to free memory
-        Object.values(this.audioElements).forEach(audio => {
-            if (audio && audio.src && audio.src.startsWith('blob:')) {
+    }
+    
+    // Revoke object URLs to free memory
+    Object.values(this.audioElements).forEach(audio => {
+        if (audio && audio.src && audio.src.startsWith('blob:')) {
+            try {
                 URL.revokeObjectURL(audio.src);
+            } catch (e) {
+                console.warn('Failed to revoke URL:', e);
             }
-        });
-        
-        this.audioElements = {
-            dial: null,
-            ring: null,
-            hangup: null,
-            currentSpeech: null
-        };
-        
+        }
+    });
+    
+    // Reset audio elements
+    this.audioElements = {
+        dial: null,
+        ring: null,
+        hangup: null,
+        currentSpeech: null
+    };
+    
+    this.activeAudio = null;
+    console.log('🧹 AudioManager cleanup complete');
+}
+handleAudioError(error, context = 'audio operation') {
+    console.warn(`Audio error in ${context}:`, error);
+    
+    // Reset problematic audio state
+    if (this.activeAudio) {
         this.activeAudio = null;
     }
+    
+    // Don't let audio errors break the app
+    try {
+        // Continue with silent operation
+        this.initializePhoneSounds();
+    } catch (e) {
+        console.warn('Failed to reinitialize audio:', e);
+    }
+}
 }

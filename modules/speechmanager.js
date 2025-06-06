@@ -366,40 +366,128 @@ export class SpeechManager {
         }
     }
     
-    async generateAIResponse(userInput, confidence = 0.8) {
-        try {
-            const prompt = this.buildGPTPrompt(userInput);
-            const response = await this.callOpenAI(prompt);
-            
-            const parsedResponse = this.parseAIResponse(response);
-            
-            // Check for repeat cues
-            const repeatMatch = parsedResponse.message.match(/Please repeat:\s*[""'']([^""'']+)[""'']/i);
-            
-            if (repeatMatch) {
-                const targetPhrase = repeatMatch[1];
-                this.startRepeatLoop(targetPhrase, 'pronunciation');
-                this.speakAI(parsedResponse.message);
-                return;
-            }
-            
-            // Speak the AI response
-            this.speakAI(parsedResponse.message);
-            
-            // CRITICAL FIX: Enhanced progression handling with user input context
-            this.handleProgressionLogic(userInput, parsedResponse, confidence);
-            
-        } catch (error) {
-            console.error('AI Response Error:', error);
-            this.speakAI("I'm sorry, could you repeat that? I didn't catch what you said.");
-            
+    
+ async generateAIResponse(userInput, confidence = 0.8) {
+    try {
+        const prompt = this.buildGPTPrompt(userInput);
+        const response = await this.callOpenAI(prompt);
+        
+        const parsedResponse = this.parseAIResponse(response);
+        
+        // Enhanced evaluation for different modules
+        const evaluation = this.evaluateUserResponse(userInput, confidence);
+        
+        this.speakAI(parsedResponse.message);
+        
+        if (evaluation.success || this.shouldProgress()) {
+            this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
+        } else if (evaluation.shouldHangup) {
+            // AI detected failure - trigger hangup
             setTimeout(() => {
-                if (this.app.isInCall() && this.continuousListening) {
-                    this.startListening();
-                }
+                this.app.callManager.endCall(false);
             }, 2000);
         }
+        
+    } catch (error) {
+        console.error('AI Response Error:', error);
+        this.handleFallbackResponse();
     }
+}
+
+// Add this evaluation method to SpeechManager.js:
+evaluateUserResponse(userInput, confidence) {
+    const currentModule = this.app.getCurrentModule();
+    const currentMode = this.app.getCurrentMode();
+    const conversationState = this.app.callManager.conversationState;
+    
+    // Basic evaluation criteria
+    const inputLength = userInput.trim().length;
+    const hasQuestionMark = userInput.includes('?');
+    const soundsNatural = confidence > 0.7 && inputLength > 20;
+    
+    // Module-specific evaluation
+    switch (currentModule) {
+        case 'opener':
+            return this.evaluateOpenerResponse(userInput, conversationState, soundsNatural);
+        case 'pitch':
+            return this.evaluatePitchResponse(userInput, conversationState, soundsNatural);
+        case 'fullcall':
+            return this.evaluateFullCallResponse(userInput, conversationState, soundsNatural);
+        case 'powerhour':
+            return this.evaluatePowerHourResponse(userInput, soundsNatural);
+        default:
+            return { success: true, shouldHangup: false };
+    }
+}
+
+evaluateOpenerResponse(userInput, conversationState, soundsNatural) {
+    const lowerInput = userInput.toLowerCase();
+    
+    if (conversationState.stage === 'opener') {
+        // Opener evaluation
+        const hasIntroduction = lowerInput.includes('my name') || lowerInput.includes('this is');
+        const hasReason = lowerInput.includes('calling') || lowerInput.includes('reaching out');
+        const hasQuestion = userInput.includes('?') || lowerInput.includes('can i') || lowerInput.includes('would you');
+        const isReasonableLength = userInput.length > 30 && userInput.length < 200;
+        
+        const passCount = [hasIntroduction, hasReason, hasQuestion, isReasonableLength].filter(Boolean).length;
+        
+        return {
+            success: passCount >= 3,
+            shouldHangup: passCount < 2 || !soundsNatural
+        };
+    }
+    
+    if (conversationState.stage === 'objection') {
+        // Objection handling evaluation
+        const acknowledges = lowerInput.includes('understand') || lowerInput.includes('appreciate') || 
+                            lowerInput.includes('totally') || lowerInput.includes('makes sense');
+        const notDefensive = !lowerInput.includes('but') || !lowerInput.includes('however');
+        const hasQuestion = userInput.includes('?');
+        
+        return {
+            success: acknowledges && notDefensive && hasQuestion && soundsNatural,
+            shouldHangup: !acknowledges || !hasQuestion
+        };
+    }
+    
+    return { success: true, shouldHangup: false };
+}
+
+evaluatePitchResponse(userInput, conversationState, soundsNatural) {
+    const lowerInput = userInput.toLowerCase();
+    
+    // Pitch evaluation
+    const isReasonableLength = userInput.length > 50 && userInput.length < 300;
+    const hasBenefits = lowerInput.includes('help') || lowerInput.includes('save') || 
+                      lowerInput.includes('increase') || lowerInput.includes('improve');
+    const notTooTechnical = !lowerInput.includes('leverage') && !lowerInput.includes('optimize');
+    
+    return {
+        success: isReasonableLength && hasBenefits && notTooTechnical && soundsNatural,
+        shouldHangup: !isReasonableLength || !hasBenefits
+    };
+}
+
+evaluateFullCallResponse(userInput, conversationState, soundsNatural) {
+    // More lenient evaluation for full call simulation
+    return {
+        success: soundsNatural && userInput.length > 20,
+        shouldHangup: !soundsNatural || userInput.length < 10
+    };
+}
+
+evaluatePowerHourResponse(userInput, soundsNatural) {
+    // Strict evaluation for power hour
+    const isQuick = userInput.length < 150; // Must be concise
+    const isConfident = !userInput.toLowerCase().includes('um') && 
+                       !userInput.toLowerCase().includes('uh');
+    
+    return {
+        success: soundsNatural && isQuick && isConfident,
+        shouldHangup: !isQuick || !isConfident
+    };
+}
     
     // CRITICAL FIX: Enhanced progression logic
     handleProgressionLogic(userInput, parsedResponse, confidence) {
