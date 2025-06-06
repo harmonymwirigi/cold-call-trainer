@@ -1,4 +1,4 @@
-// api/chat.js - Simplified OpenAI GPT integration
+// api/chat.js - Fixed OpenAI GPT integration with better error handling
 export default async function handler(req, res) {
     // Enable CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -17,9 +17,10 @@ export default async function handler(req, res) {
     
     // Check if OpenAI API key is configured
     if (!process.env.OPENAI_API_KEY) {
+        console.warn('⚠️ OpenAI API key not configured');
         res.status(500).json({ 
             error: 'OpenAI API key not configured',
-            message: 'OpenAI not available - please use fallback responses',
+            message: 'OpenAI not available - using fallback responses',
             fallback: true
         });
         return;
@@ -32,7 +33,8 @@ export default async function handler(req, res) {
         if (!messages || !Array.isArray(messages) || messages.length === 0) {
             res.status(400).json({ 
                 error: 'Invalid request', 
-                message: 'Messages array is required' 
+                message: 'Messages array is required',
+                fallback: true
             });
             return;
         }
@@ -42,7 +44,8 @@ export default async function handler(req, res) {
             if (!message.role || !['system', 'user', 'assistant'].includes(message.role)) {
                 res.status(400).json({
                     error: 'Invalid message format',
-                    message: 'Each message must have a valid role'
+                    message: 'Each message must have a valid role',
+                    fallback: true
                 });
                 return;
             }
@@ -50,19 +53,23 @@ export default async function handler(req, res) {
             if (!message.content || typeof message.content !== 'string') {
                 res.status(400).json({
                     error: 'Invalid message format',
-                    message: 'Each message must have string content'
+                    message: 'Each message must have string content',
+                    fallback: true
                 });
                 return;
             }
         }
         
-        console.log('OpenAI Request:', { 
+        console.log('📡 OpenAI Request:', { 
             model, 
             messageCount: messages.length,
             userInput: messages[messages.length - 1]?.content?.substring(0, 50) + '...'
         });
         
-        // Call OpenAI API
+        // Call OpenAI API with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
+        
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -77,16 +84,29 @@ export default async function handler(req, res) {
                 top_p: 1,
                 frequency_penalty: 0.3,
                 presence_penalty: 0.3
-            })
+            }),
+            signal: controller.signal
         });
+        
+        clearTimeout(timeoutId);
         
         if (!response.ok) {
             const errorText = await response.text();
-            console.error('OpenAI API Error:', response.status, errorText);
+            console.error('❌ OpenAI API Error:', response.status, errorText);
             
-            res.status(response.status).json({
+            let errorMessage = 'OpenAI API request failed';
+            
+            if (response.status === 401) {
+                errorMessage = 'Invalid OpenAI API key';
+            } else if (response.status === 429) {
+                errorMessage = 'OpenAI API rate limit exceeded';
+            } else if (response.status === 503) {
+                errorMessage = 'OpenAI API service unavailable';
+            }
+            
+            res.status(500).json({
                 error: 'OpenAI API Error',
-                message: `Request failed with status ${response.status}`,
+                message: errorMessage,
                 fallback: true
             });
             return;
@@ -96,16 +116,16 @@ export default async function handler(req, res) {
         
         // Validate response
         if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-            console.error('Invalid OpenAI response:', data);
+            console.error('❌ Invalid OpenAI response:', data);
             res.status(500).json({
                 error: 'Invalid OpenAI response',
-                message: 'Unexpected response format',
+                message: 'Unexpected response format from OpenAI',
                 fallback: true
             });
             return;
         }
         
-        console.log('OpenAI Response:', {
+        console.log('✅ OpenAI Response:', {
             usage: data.usage,
             responseLength: data.choices[0].message.content.length
         });
@@ -113,21 +133,24 @@ export default async function handler(req, res) {
         res.status(200).json(data);
         
     } catch (error) {
-        console.error('Chat API Error:', error);
+        console.error('❌ Chat API Error:', error);
         
         let message = 'Internal server error';
         let statusCode = 500;
         
         if (error.name === 'AbortError') {
-            message = 'Request timed out';
+            message = 'Request timed out - using fallback response';
             statusCode = 408;
         } else if (error.message && error.message.includes('fetch')) {
-            message = 'Network error connecting to OpenAI';
+            message = 'Network error connecting to OpenAI - using fallback';
+            statusCode = 503;
+        } else if (error.code === 'ENOTFOUND') {
+            message = 'DNS resolution failed - using fallback';
             statusCode = 503;
         }
         
         res.status(statusCode).json({
-            error: 'Internal server error',
+            error: 'Chat API Error',
             message,
             fallback: true
         });

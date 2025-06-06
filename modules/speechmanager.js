@@ -1,6 +1,6 @@
 /**
  * Speech Manager - Enhanced with proper conversation flow handling
- * Critical Fix: Handle opener flow interaction properly
+ * CRITICAL FIX: Added missing methods and better error handling
  */
 
 export class SpeechManager {
@@ -366,283 +366,164 @@ export class SpeechManager {
         }
     }
     
-    
- async generateAIResponse(userInput, confidence = 0.8) {
-    try {
-        const prompt = this.buildGPTPrompt(userInput);
-        const response = await this.callOpenAI(prompt);
-        
-        const parsedResponse = this.parseAIResponse(response);
-        
-        // Enhanced evaluation for different modules
-        const evaluation = this.evaluateUserResponse(userInput, confidence);
-        
-        this.speakAI(parsedResponse.message);
-        
-        if (evaluation.success || this.shouldProgress()) {
-            this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
-        } else if (evaluation.shouldHangup) {
-            // AI detected failure - trigger hangup
-            setTimeout(() => {
-                this.app.callManager.endCall(false);
-            }, 2000);
-        }
-        
-    } catch (error) {
-        console.error('AI Response Error:', error);
-        this.handleFallbackResponse();
-    }
-}
-
-// Add this evaluation method to SpeechManager.js:
-evaluateUserResponse(userInput, confidence) {
-    const currentModule = this.app.getCurrentModule();
-    const currentMode = this.app.getCurrentMode();
-    const conversationState = this.app.callManager.conversationState;
-    
-    // Basic evaluation criteria
-    const inputLength = userInput.trim().length;
-    const hasQuestionMark = userInput.includes('?');
-    const soundsNatural = confidence > 0.7 && inputLength > 20;
-    
-    // Module-specific evaluation
-    switch (currentModule) {
-        case 'opener':
-            return this.evaluateOpenerResponse(userInput, conversationState, soundsNatural);
-        case 'pitch':
-            return this.evaluatePitchResponse(userInput, conversationState, soundsNatural);
-        case 'fullcall':
-            return this.evaluateFullCallResponse(userInput, conversationState, soundsNatural);
-        case 'powerhour':
-            return this.evaluatePowerHourResponse(userInput, soundsNatural);
-        default:
-            return { success: true, shouldHangup: false };
-    }
-}
-
-evaluateOpenerResponse(userInput, conversationState, soundsNatural) {
-    const lowerInput = userInput.toLowerCase();
-    
-    if (conversationState.stage === 'opener') {
-        // Opener evaluation
-        const hasIntroduction = lowerInput.includes('my name') || lowerInput.includes('this is');
-        const hasReason = lowerInput.includes('calling') || lowerInput.includes('reaching out');
-        const hasQuestion = userInput.includes('?') || lowerInput.includes('can i') || lowerInput.includes('would you');
-        const isReasonableLength = userInput.length > 30 && userInput.length < 200;
-        
-        const passCount = [hasIntroduction, hasReason, hasQuestion, isReasonableLength].filter(Boolean).length;
-        
-        return {
-            success: passCount >= 3,
-            shouldHangup: passCount < 2 || !soundsNatural
-        };
-    }
-    
-    if (conversationState.stage === 'objection') {
-        // Objection handling evaluation
-        const acknowledges = lowerInput.includes('understand') || lowerInput.includes('appreciate') || 
-                            lowerInput.includes('totally') || lowerInput.includes('makes sense');
-        const notDefensive = !lowerInput.includes('but') || !lowerInput.includes('however');
-        const hasQuestion = userInput.includes('?');
-        
-        return {
-            success: acknowledges && notDefensive && hasQuestion && soundsNatural,
-            shouldHangup: !acknowledges || !hasQuestion
-        };
-    }
-    
-    return { success: true, shouldHangup: false };
-}
-
-evaluatePitchResponse(userInput, conversationState, soundsNatural) {
-    const lowerInput = userInput.toLowerCase();
-    
-    // Pitch evaluation
-    const isReasonableLength = userInput.length > 50 && userInput.length < 300;
-    const hasBenefits = lowerInput.includes('help') || lowerInput.includes('save') || 
-                      lowerInput.includes('increase') || lowerInput.includes('improve');
-    const notTooTechnical = !lowerInput.includes('leverage') && !lowerInput.includes('optimize');
-    
-    return {
-        success: isReasonableLength && hasBenefits && notTooTechnical && soundsNatural,
-        shouldHangup: !isReasonableLength || !hasBenefits
-    };
-}
-
-evaluateFullCallResponse(userInput, conversationState, soundsNatural) {
-    // More lenient evaluation for full call simulation
-    return {
-        success: soundsNatural && userInput.length > 20,
-        shouldHangup: !soundsNatural || userInput.length < 10
-    };
-}
-
-evaluatePowerHourResponse(userInput, soundsNatural) {
-    // Strict evaluation for power hour
-    const isQuick = userInput.length < 150; // Must be concise
-    const isConfident = !userInput.toLowerCase().includes('um') && 
-                       !userInput.toLowerCase().includes('uh');
-    
-    return {
-        success: soundsNatural && isQuick && isConfident,
-        shouldHangup: !isQuick || !isConfident
-    };
-}
-    
-    // CRITICAL FIX: Enhanced progression logic
-    handleProgressionLogic(userInput, parsedResponse, confidence) {
+    // CRITICAL FIX: Add missing shouldProgress method
+    shouldProgress() {
         const currentModule = this.app.getCurrentModule();
         const currentMode = this.app.getCurrentMode();
         
-        console.log('🔄 Progression Logic:', {
-            module: currentModule,
-            mode: currentMode,
-            userInput,
-            response: parsedResponse.message,
-            success: parsedResponse.success
-        });
-        
-        // Different handling for different modules
+        // In warmup mode, any reasonable response should progress
         if (currentModule === 'warmup') {
-            // Warmup: Simple success handling
-            if (parsedResponse.success || this.isCorrectWarmupResponse(userInput)) {
-                this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
-            }
-        } else if (currentModule === 'opener') {
-            // Opener: Complex flow handling
-            this.handleOpenerProgression(userInput, parsedResponse, confidence);
-        } else {
-            // Other modules: Standard handling
-            if (parsedResponse.success || (currentMode === 'marathon' || currentMode === 'legend')) {
-                this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
-            } else if (parsedResponse.feedback) {
-                this.app.uiManager.showCallFeedback(parsedResponse.feedback, parsedResponse.success);
-            }
+            return true;
+        }
+        
+        // In marathon or legend mode, most responses should progress
+        if (currentMode === 'marathon' || currentMode === 'legend') {
+            return true;
+        }
+        
+        // In practice mode, be more selective
+        return false;
+    }
+    
+    // CRITICAL FIX: Add missing handleFallbackResponse method
+    handleFallbackResponse() {
+        const currentModule = this.app.getCurrentModule();
+        const fallbackResponse = this.generateFallbackResponse();
+        
+        console.log('🔄 Using fallback response:', fallbackResponse);
+        
+        // Parse the fallback response
+        const parsedResponse = this.parseAIResponse(fallbackResponse);
+        
+        // Speak the AI response
+        this.speakAI(parsedResponse.message);
+        
+        // Handle progression
+        if (parsedResponse.success || this.shouldProgress()) {
+            this.app.callManager.handleSuccessfulInteraction('', parsedResponse.message);
         }
     }
     
-    // CRITICAL FIX: Handle opener module progression
-    handleOpenerProgression(userInput, parsedResponse, confidence) {
-    const currentMode = this.app.getCurrentMode();
-    const conversationState = this.app.callManager.conversationState;
-    
-    console.log('🔄 Opener Flow:', {
-        currentStage: conversationState.stage,
-        userInput: userInput.substring(0, 50) + '...',
-        mode: currentMode
-    });
-    
-    // Analyze user input intent
-    const inputAnalysis = this.analyzeUserInput(userInput);
-    
-    if (currentMode === 'practice') {
-        // Enhanced practice mode flow
-        if (conversationState.stage === 'opener' && inputAnalysis.type === 'opener') {
-            // User delivered opener, trigger objection stage
-            console.log('✅ Opener detected, moving to objection stage');
-            this.app.callManager.conversationState.openerDelivered = true;
-            this.app.callManager.conversationState.stage = 'objection';
+    async generateAIResponse(userInput, confidence = 0.8) {
+        try {
+            const prompt = this.buildGPTPrompt(userInput);
+            const response = await this.callOpenAI(prompt);
             
-            // AI should respond with objection in next interaction
-            this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
+            const parsedResponse = this.parseAIResponse(response);
             
-        } else if (conversationState.stage === 'objection' && inputAnalysis.type === 'objection_response') {
-            // User handled objection, move to pitch stage
-            console.log('✅ Objection handled, moving to pitch stage');
-            this.app.callManager.conversationState.objectionHandled = true;
-            this.app.callManager.conversationState.stage = 'pitch';
-            this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
+            // Enhanced evaluation for different modules
+            const evaluation = this.evaluateUserResponse(userInput, confidence);
             
-        } else if (conversationState.stage === 'pitch' && inputAnalysis.type === 'pitch') {
-            // User delivered pitch, move to meeting stage
-            console.log('✅ Pitch delivered, moving to meeting stage');
-            this.app.callManager.conversationState.pitchDelivered = true;
-            this.app.callManager.conversationState.stage = 'meeting';
-            this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
+            this.speakAI(parsedResponse.message);
             
-        } else if (conversationState.stage === 'meeting' && inputAnalysis.type === 'meeting_request') {
-            // User requested meeting, complete the flow
-            console.log('✅ Meeting requested, completing practice flow');
-            this.app.callManager.conversationState.meetingRequested = true;
-            this.app.callManager.conversationState.stage = 'complete';
-            this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
+            if (evaluation.success || this.shouldProgress()) {
+                this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
+            } else if (evaluation.shouldHangup) {
+                // AI detected failure - trigger hangup
+                setTimeout(() => {
+                    this.app.callManager.endCall(false);
+                }, 2000);
+            }
             
-        } else {
-            // User input doesn't match expected stage, provide guidance
-            this.provideStageGuidance(conversationState.stage, inputAnalysis.type);
-        }
-    } else if (currentMode === 'marathon') {
-        // Marathon mode - any reasonable response progresses
-        if (inputAnalysis.type === 'opener' || inputAnalysis.type === 'objection_response') {
-            this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
+        } catch (error) {
+            console.error('AI Response Error:', error);
+            this.handleFallbackResponse();
         }
     }
-}
-provideStageGuidance(expectedStage, actualType) {
-    const guidance = {
-        opener: "Start with your opener - introduce yourself with your name, company, and reason for calling.",
-        objection: "Handle the objection I just gave you. Show empathy and ask a question to move forward.",
-        pitch: "Now deliver your pitch. Focus on the value and benefits you can provide.",
-        meeting: "Ask for a meeting. Suggest specific times and be ready to negotiate."
-    };
-    
-    const message = guidance[expectedStage] || "Continue with the conversation flow.";
-    this.app.speechManager.updateVoiceStatus(`💡 Tip: ${message}`);
-    
-    // Don't progress the conversation, let them try again
-    setTimeout(() => {
-        if (this.app.isInCall() && this.continuousListening) {
-            this.startListening();
-        }
-    }, 3000);
-}
 
-    
-    // CRITICAL FIX: Analyze user input to understand intent
-    analyzeUserInput(input) {
-        const lowerInput = input.toLowerCase();
+    // Add this evaluation method to SpeechManager.js:
+    evaluateUserResponse(userInput, confidence) {
+        const currentModule = this.app.getCurrentModule();
+        const currentMode = this.app.getCurrentMode();
+        const conversationState = this.app.callManager.conversationState;
         
-        // Check for opener indicators
-        const openerIndicators = ['hi', 'hello', 'my name is', 'this is', 'calling from', 'i\'m calling'];
-        const hasOpenerIndicators = openerIndicators.some(indicator => lowerInput.includes(indicator));
+        // Basic evaluation criteria
+        const inputLength = userInput.trim().length;
+        const hasQuestionMark = userInput.includes('?');
+        const soundsNatural = confidence > 0.7 && inputLength > 20;
         
-        // Check for objection response indicators
-        const objectionIndicators = ['understand', 'appreciate', 'respect', 'i hear you', 'makes sense'];
-        const hasObjectionIndicators = objectionIndicators.some(indicator => lowerInput.includes(indicator));
-        
-        // Check for pitch indicators
-        const pitchIndicators = ['help', 'solution', 'benefit', 'value', 'save', 'improve', 'increase'];
-        const hasPitchIndicators = pitchIndicators.some(indicator => lowerInput.includes(indicator));
-        
-        // Check for meeting request indicators
-        const meetingIndicators = ['meeting', 'call', 'discuss', 'chat', 'available', 'time', 'schedule'];
-        const hasMeetingIndicators = meetingIndicators.some(indicator => lowerInput.includes(indicator));
-        
-        // Determine the most likely type
-        if (hasOpenerIndicators) {
-            return { type: 'opener', confidence: 0.8 };
-        } else if (hasObjectionIndicators) {
-            return { type: 'objection_response', confidence: 0.7 };
-        } else if (hasPitchIndicators) {
-            return { type: 'pitch', confidence: 0.7 };
-        } else if (hasMeetingIndicators) {
-            return { type: 'meeting_request', confidence: 0.6 };
-        } else {
-            return { type: 'general', confidence: 0.5 };
+        // Module-specific evaluation
+        switch (currentModule) {
+            case 'opener':
+                return this.evaluateOpenerResponse(userInput, conversationState, soundsNatural);
+            case 'pitch':
+                return this.evaluatePitchResponse(userInput, conversationState, soundsNatural);
+            case 'fullcall':
+                return this.evaluateFullCallResponse(userInput, conversationState, soundsNatural);
+            case 'powerhour':
+                return this.evaluatePowerHourResponse(userInput, soundsNatural);
+            default:
+                return { success: true, shouldHangup: false };
         }
     }
-    
-    // CRITICAL FIX: Better warmup response detection
-    isCorrectWarmupResponse(input) {
-        const lowerInput = input.toLowerCase();
+
+    evaluateOpenerResponse(userInput, conversationState, soundsNatural) {
+        const lowerInput = userInput.toLowerCase();
         
-        // Basic indicators of a reasonable response
-        const responseIndicators = [
-            'hi', 'hello', 'my name', 'calling', 'understand', 'appreciate',
-            'meeting', 'discuss', 'help', 'solution', 'benefit', 'value'
-        ];
+        if (conversationState.stage === 'opener') {
+            // Opener evaluation
+            const hasIntroduction = lowerInput.includes('my name') || lowerInput.includes('this is');
+            const hasReason = lowerInput.includes('calling') || lowerInput.includes('reaching out');
+            const hasQuestion = userInput.includes('?') || lowerInput.includes('can i') || lowerInput.includes('would you');
+            const isReasonableLength = userInput.length > 30 && userInput.length < 200;
+            
+            const passCount = [hasIntroduction, hasReason, hasQuestion, isReasonableLength].filter(Boolean).length;
+            
+            return {
+                success: passCount >= 3,
+                shouldHangup: passCount < 2 || !soundsNatural
+            };
+        }
         
-        return responseIndicators.some(indicator => lowerInput.includes(indicator)) && input.length > 10;
+        if (conversationState.stage === 'objection') {
+            // Objection handling evaluation
+            const acknowledges = lowerInput.includes('understand') || lowerInput.includes('appreciate') || 
+                                lowerInput.includes('totally') || lowerInput.includes('makes sense');
+            const notDefensive = !lowerInput.includes('but') || !lowerInput.includes('however');
+            const hasQuestion = userInput.includes('?');
+            
+            return {
+                success: acknowledges && notDefensive && hasQuestion && soundsNatural,
+                shouldHangup: !acknowledges || !hasQuestion
+            };
+        }
+        
+        return { success: true, shouldHangup: false };
+    }
+
+    evaluatePitchResponse(userInput, conversationState, soundsNatural) {
+        const lowerInput = userInput.toLowerCase();
+        
+        // Pitch evaluation
+        const isReasonableLength = userInput.length > 50 && userInput.length < 300;
+        const hasBenefits = lowerInput.includes('help') || lowerInput.includes('save') || 
+                          lowerInput.includes('increase') || lowerInput.includes('improve');
+        const notTooTechnical = !lowerInput.includes('leverage') && !lowerInput.includes('optimize');
+        
+        return {
+            success: isReasonableLength && hasBenefits && notTooTechnical && soundsNatural,
+            shouldHangup: !isReasonableLength || !hasBenefits
+        };
+    }
+
+    evaluateFullCallResponse(userInput, conversationState, soundsNatural) {
+        // More lenient evaluation for full call simulation
+        return {
+            success: soundsNatural && userInput.length > 20,
+            shouldHangup: !soundsNatural || userInput.length < 10
+        };
+    }
+
+    evaluatePowerHourResponse(userInput, soundsNatural) {
+        // Strict evaluation for power hour
+        const isQuick = userInput.length < 150; // Must be concise
+        const isConfident = !userInput.toLowerCase().includes('um') && 
+                           !userInput.toLowerCase().includes('uh');
+        
+        return {
+            success: soundsNatural && isQuick && isConfident,
+            shouldHangup: !isQuick || !isConfident
+        };
     }
     
     buildGPTPrompt(userInput) {
@@ -687,7 +568,6 @@ provideStageGuidance(expectedStage, actualType) {
         return contexts[currentModule] || contexts.warmup;
     }
     
-    // CRITICAL FIX: Context for opener stages
     getOpenerStageContext(conversationState) {
         if (!conversationState) return "Expecting an opener.";
         
@@ -807,7 +687,6 @@ provideStageGuidance(expectedStage, actualType) {
         return response;
     }
     
-    // CRITICAL FIX: Opener-specific fallback responses
     generateOpenerFallbackResponse(conversationState) {
         if (!conversationState) conversationState = { stage: 'opener' };
         
