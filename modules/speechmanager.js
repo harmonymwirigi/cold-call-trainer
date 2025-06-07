@@ -368,25 +368,11 @@ export class SpeechManager {
     
     // CRITICAL FIX: Add missing shouldProgress method
     shouldProgress() {
-        const currentModule = this.app.getCurrentModule();
-        const currentMode = this.app.getCurrentMode();
-        
-        // In warmup mode, any reasonable response should progress
-        if (currentModule === 'warmup') {
-            return true;
-        }
-        
-        // In marathon or legend mode, most responses should progress
-        if (currentMode === 'marathon' || currentMode === 'legend') {
-            return true;
-        }
-        
-        // In practice mode, be more selective
-        return false;
-    }
+    return true; // Always progress to avoid hanging up
+}
     
-    // CRITICAL FIX: Add missing handleFallbackResponse method
-    handleFallbackResponse(userInput = '', confidence = 0.8) {
+    // CRITICAL FIX: Improved handleFallbackResponse that doesn't end the call
+handleFallbackResponse(userInput = '', confidence = 0.8) {
     const currentModule = this.app.getCurrentModule();
     const currentMode = this.app.getCurrentMode();
     const conversationState = this.app.callManager.conversationState;
@@ -414,11 +400,15 @@ export class SpeechManager {
     // Speak the AI response
     this.speakAI(parsedResponse.message);
     
-    // Handle progression based on the response
-    if (parsedResponse.success || this.shouldProgressFallback(userInput, currentModule)) {
-        this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
-    }
+    // CRITICAL FIX: Always treat fallback as successful to continue conversation
+    setTimeout(() => {
+        if (this.app.isInCall()) {
+            console.log('✅ Processing fallback as successful interaction');
+            this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
+        }
+    }, 1500);
 }
+
     shouldProgressFallback(userInput, currentModule) {
     const inputLength = userInput.trim().length;
     
@@ -483,56 +473,59 @@ generateGeneralFallbackResponse(currentModule, userInput = '') {
 }
    async generateAIResponse(userInput, confidence = 0.8) {
     try {
+        console.log('🤖 Generating AI response for:', userInput.substring(0, 50) + '...');
+        
         const prompt = this.buildGPTPrompt(userInput);
         const response = await this.callOpenAI(prompt);
         
-        const parsedResponse = this.parseAIResponse(response);
-        
-        // Enhanced evaluation for different modules
-        const evaluation = this.evaluateUserResponse(userInput, confidence);
-        
-        this.speakAI(parsedResponse.message);
-        
-        if (evaluation.success || this.shouldProgress()) {
-            this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
-        } else if (evaluation.shouldHangup) {
-            // AI detected failure - trigger hangup
-            setTimeout(() => {
-                this.app.callManager.endCall(false);
-            }, 2000);
+        if (!response) {
+            console.warn('⚠️ No response from OpenAI, using fallback');
+            this.handleFallbackResponse(userInput, confidence);
+            return;
         }
         
+        const parsedResponse = this.parseAIResponse(response);
+        console.log('✅ AI Response parsed:', parsedResponse.message);
+        
+        // Speak the AI response
+        this.speakAI(parsedResponse.message);
+        
+        // CRITICAL FIX: Always handle as successful interaction to continue conversation
+        setTimeout(() => {
+            if (this.app.isInCall()) {
+                console.log('✅ Processing as successful interaction');
+                this.app.callManager.handleSuccessfulInteraction(userInput, parsedResponse.message);
+            }
+        }, 1000);
+        
     } catch (error) {
-        console.error('AI Response Error:', error);
+        console.error('❌ AI Response Error:', error);
+        console.log('🔄 Using fallback response due to error');
         this.handleFallbackResponse(userInput, confidence);
     }
 }
-
     // Add this evaluation method to SpeechManager.js:
-    evaluateUserResponse(userInput, confidence) {
-        const currentModule = this.app.getCurrentModule();
-        const currentMode = this.app.getCurrentMode();
-        const conversationState = this.app.callManager.conversationState;
-        
-        // Basic evaluation criteria
-        const inputLength = userInput.trim().length;
-        const hasQuestionMark = userInput.includes('?');
-        const soundsNatural = confidence > 0.7 && inputLength > 20;
-        
-        // Module-specific evaluation
-        switch (currentModule) {
-            case 'opener':
-                return this.evaluateOpenerResponse(userInput, conversationState, soundsNatural);
-            case 'pitch':
-                return this.evaluatePitchResponse(userInput, conversationState, soundsNatural);
-            case 'fullcall':
-                return this.evaluateFullCallResponse(userInput, conversationState, soundsNatural);
-            case 'powerhour':
-                return this.evaluatePowerHourResponse(userInput, soundsNatural);
-            default:
-                return { success: true, shouldHangup: false };
-        }
+   evaluateUserResponse(userInput, confidence) {
+    const inputLength = userInput.trim().length;
+    
+    console.log('🔍 Evaluating user response:', {
+        inputLength,
+        confidence,
+        content: userInput.substring(0, 30) + '...'
+    });
+    
+    // Be very lenient to keep conversation flowing
+    if (inputLength > 3 && confidence > 0.3) {
+        return { success: true, shouldHangup: false };
     }
+    
+    // Only consider hanging up for completely empty responses
+    if (inputLength < 2) {
+        return { success: false, shouldHangup: false }; // Still don't hang up
+    }
+    
+    return { success: true, shouldHangup: false };
+}
 
     evaluateOpenerResponse(userInput, conversationState, soundsNatural) {
         const lowerInput = userInput.toLowerCase();
@@ -689,38 +682,60 @@ After your response, add: "FEEDBACK: SUCCESS - [brief tip]" if they did well, or
         }
     }
     
-    async callOpenAI(messages) {
-        try {
-            const response = await fetch('/api/chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    messages,
-                    model: 'gpt-3.5-turbo',
-                    max_tokens: 150,
-                    temperature: 0.7
-                })
-            });
+    // CRITICAL FIX: Ensure callOpenAI handles errors properly
+async callOpenAI(messages) {
+    try {
+        console.log('📡 Calling OpenAI API...');
+        
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                messages,
+                model: 'gpt-3.5-turbo',
+                max_tokens: 150,
+                temperature: 0.7
+            })
+        });
+        
+        if (!response.ok) {
+            console.warn(`⚠️ API response not OK: ${response.status}`);
             
-            if (!response.ok) {
+            // Try to get error details
+            try {
                 const errorData = await response.json();
+                console.log('📄 Error details:', errorData);
+                
                 if (errorData.fallback) {
-                    console.warn('🔄 Using fallback AI response');
-                    return this.generateFallbackResponse();
+                    console.log('🔄 API indicated fallback should be used');
+                    return null; // This will trigger fallback
                 }
-                throw new Error(`HTTP error! status: ${response.status}`);
+            } catch (e) {
+                console.warn('Could not parse error response');
             }
             
-            const data = await response.json();
-            return data.choices[0].message.content;
-            
-        } catch (error) {
-            console.warn('⚠️ OpenAI API failed, using fallback:', error);
-            return this.generateFallbackResponse();
+            return null; // Trigger fallback
         }
+        
+        const data = await response.json();
+        
+        // Validate response structure
+        if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+            console.warn('⚠️ Invalid OpenAI response structure');
+            return null; // Trigger fallback
+        }
+        
+        console.log('✅ OpenAI API successful');
+        return data.choices[0].message.content;
+        
+    } catch (error) {
+        console.error('❌ OpenAI API call failed:', error);
+        return null; // This will trigger fallback
     }
+}
+
     
     generateFallbackResponse() {
         const currentModule = this.app.getCurrentModule();
@@ -789,77 +804,78 @@ After your response, add: "FEEDBACK: SUCCESS - [brief tip]" if they did well, or
         return response;
     }
     
-    generateOpenerFallbackResponse(conversationState, userInput = '') {
+   generateOpenerFallbackResponse(conversationState, userInput = '') {
     if (!conversationState) {
         conversationState = { stage: 'opener' };
     }
     
     const lowerInput = userInput.toLowerCase();
     
+    console.log('🔄 Generating opener fallback for stage:', conversationState.stage);
+    
     switch (conversationState.stage) {
         case 'opener':
-            // Check if user delivered a reasonable opener
-            const hasOpenerElements = lowerInput.includes('hi') || lowerInput.includes('hello') || 
-                                    lowerInput.includes('my name') || lowerInput.includes('this is') ||
-                                    lowerInput.includes('calling');
+            // Check if user gave any kind of greeting or introduction
+            const hasGreeting = lowerInput.includes('hi') || lowerInput.includes('hello') || 
+                               lowerInput.includes('good') || lowerInput.includes('how are you');
+            const hasName = lowerInput.includes('name') || lowerInput.includes('this is') || 
+                           lowerInput.includes('i\'m') || lowerInput.includes('my name');
             
-            if (hasOpenerElements && userInput.length > 20) {
-                // Good opener - give an objection
+            if (hasGreeting || hasName || userInput.length > 10) {
+                // Good enough opener - give an objection to move forward
                 const objections = [
-                    "What's this about? FEEDBACK: SUCCESS - Good opener! Now handle this objection with empathy.",
-                    "I'm not interested. FEEDBACK: SUCCESS - Nice introduction! Address this objection.",
-                    "We don't take cold calls. FEEDBACK: SUCCESS - Clear opener! Handle this common objection.",
-                    "Now is not a good time. FEEDBACK: SUCCESS - Professional opener! Address their timing concern."
+                    "What's this about exactly? FEEDBACK: SUCCESS - Good greeting! Now handle this objection.",
+                    "I'm quite busy right now. What do you need? FEEDBACK: SUCCESS - Nice start! Address my time concern.",
+                    "Who is this and why are you calling? FEEDBACK: SUCCESS - Continue with your introduction.",
+                    "Is this a sales call? FEEDBACK: SUCCESS - Good opener! Handle this question directly."
                 ];
                 return objections[Math.floor(Math.random() * objections.length)];
             } else {
-                // Weak opener - encourage better one
-                const encouragements = [
-                    "Sorry, who is this? Could you start over with your name and company? FEEDBACK: RETRY - Include your name, company, and reason for calling.",
-                    "Hello? I didn't catch that. FEEDBACK: RETRY - Start with a clear introduction including your name and purpose.",
-                    "What? Could you speak up and tell me who you are? FEEDBACK: RETRY - Be clearer with your opener."
-                ];
-                return encouragements[Math.floor(Math.random() * encouragements.length)];
+                // Encourage them to try again
+                return "Hello? Who is this? FEEDBACK: RETRY - Start with a clear greeting and introduction.";
             }
             
         case 'objection':
-            // User should handle objection
+            // User should handle objection - be encouraging
             const handlesObjection = lowerInput.includes('understand') || lowerInput.includes('appreciate') ||
-                                   lowerInput.includes('respect') || lowerInput.includes('hear you') ||
-                                   lowerInput.includes('make sense');
+                                   lowerInput.includes('respect') || lowerInput.includes('know') ||
+                                   lowerInput.includes('realize') || userInput.length > 15;
             
             if (handlesObjection) {
-                return "That's a good point. Go ahead, what did you want to discuss? FEEDBACK: SUCCESS - Nice objection handling! Now deliver your pitch.";
+                return "That makes sense. What exactly are you offering? FEEDBACK: SUCCESS - Good objection handling! Now pitch me.";
             } else {
-                return "I really don't have time for this. FEEDBACK: RETRY - Show empathy and ask questions instead of being defensive.";
+                return "I really don't have time for this. FEEDBACK: RETRY - Show empathy first, then explain your value.";
             }
             
         case 'pitch':
             // User should deliver pitch
             const hasPitchElements = lowerInput.includes('help') || lowerInput.includes('save') ||
-                                   lowerInput.includes('improve') || lowerInput.includes('solution');
+                                   lowerInput.includes('improve') || lowerInput.includes('solution') ||
+                                   lowerInput.includes('benefit') || userInput.length > 20;
             
             if (hasPitchElements) {
-                return "Interesting. How exactly would that work? FEEDBACK: SUCCESS - Good pitch delivery! Now ask for a meeting.";
+                return "That sounds interesting. How would we get started? FEEDBACK: SUCCESS - Good pitch! Now ask for a meeting.";
             } else {
-                return "I don't understand what you're offering. FEEDBACK: RETRY - Focus on specific benefits and value.";
+                return "I don't understand what you're selling. FEEDBACK: RETRY - Be clearer about your value proposition.";
             }
             
         case 'meeting':
             // User should ask for meeting
             const asksMeeting = lowerInput.includes('meeting') || lowerInput.includes('call') ||
-                              lowerInput.includes('discuss') || lowerInput.includes('available');
+                              lowerInput.includes('discuss') || lowerInput.includes('available') ||
+                              lowerInput.includes('time') || lowerInput.includes('schedule');
             
             if (asksMeeting) {
-                return "Let me check my calendar. Good work completing the flow! FEEDBACK: SUCCESS - Excellent meeting request!";
+                return "Let me check my calendar. Great conversation! FEEDBACK: SUCCESS - Perfect meeting request!";
             } else {
                 return "So what's the next step? FEEDBACK: RETRY - Ask for a specific meeting time.";
             }
             
         default:
-            return "Hello, this is Sarah. Who am I speaking with? FEEDBACK: SUCCESS - Start with your opener.";
+            return "Hello, I'm listening. Go ahead. FEEDBACK: SUCCESS - Continue with your opener.";
     }
 }
+
 
     parseAIResponse(response) {
         const feedbackMatch = response.match(/FEEDBACK:\s*(SUCCESS|RETRY)\s*-\s*(.+?)(?:\n|$)/i);
