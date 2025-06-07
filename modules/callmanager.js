@@ -302,70 +302,70 @@ export class CallManager {
         }, 1000);
     }
     
+    // CRITICAL FIX: Better conversation starter
     startConversation() {
-        if (!this.callSequenceActive) return;
-        
-        const welcomeMessage = this.generateWelcomeMessage();
-        this.app.speechManager.speakAI(welcomeMessage);
-        
-        setTimeout(() => {
-            if (this.app.isInCall() && this.callSequenceActive) {
-                this.app.speechManager.startContinuousListening();
-            }
-        }, 2000);
+    if (!this.callSequenceActive) return;
+    
+    const welcomeMessage = this.generateWelcomeMessage();
+    
+    console.log('🗣️ AI Starting conversation:', welcomeMessage);
+    
+    this.app.speechManager.speakAI(welcomeMessage);
+    
+    setTimeout(() => {
+        if (this.app.isInCall() && this.callSequenceActive) {
+            this.app.speechManager.startContinuousListening();
+        }
+    }, 2000);
+}
+    
+    // CRITICAL FIX: Improved generateWelcomeMessage
+generateWelcomeMessage() {
+    const character = this.app.characterManager.getCurrentCharacter();
+    const currentModule = this.app.getCurrentModule();
+    
+    if (currentModule === 'warmup') {
+        return this.generateWarmupMessage(character);
     }
     
-    generateWelcomeMessage() {
-        const character = this.app.characterManager.getCurrentCharacter();
-        const currentModule = this.app.getCurrentModule();
-        
-        if (currentModule === 'warmup') {
-            return this.generateWarmupMessage(character);
-        }
-        
-        // CRITICAL FIX: Different welcome messages based on module and conversation state
-        if (currentModule === 'opener') {
-            // Opener module: Start with natural greeting, expect opener
-            return this.generateOpenerWelcomeMessage(character);
-        }
-        
-        const welcomeMessages = {
-            pitch: [
-                `Hi, this is ${character.name}. Go ahead with your pitch.`,
-                `${character.name} speaking. I'll give you two minutes, what's your pitch?`,
-                `This is ${character.name}. You've got my attention, now pitch me.`,
-                `${character.name} here. I'm listening, what are you selling?`
-            ],
-            fullcall: [
-                `Hello, this is ${character.name}.`,
-                `${character.name} speaking, who is this?`,
-                `This is ${character.name}, how can I help you?`,
-                `${character.name} here, what's this regarding?`
-            ],
-            powerhour: [
-                `Call ${this.app.getCurrentProgress() + 1}. Hello, this is ${character.name}. You've got 30 seconds.`,
-                `Power Hour Call ${this.app.getCurrentProgress() + 1}. This is ${character.name}, make it quick.`,
-                `${character.name} speaking. I'm between meetings, talk fast.`,
-                `Call ${this.app.getCurrentProgress() + 1} of 10. ${character.name} here, what do you want?`
-            ]
-        };
-        
-        const messages = welcomeMessages[currentModule] || welcomeMessages.opener;
-        return messages[Math.floor(Math.random() * messages.length)];
+    if (currentModule === 'opener') {
+        // For opener, start with a simple greeting - don't hang up immediately
+        return this.generateOpenerWelcomeMessage(character);
     }
     
-    // CRITICAL FIX: Opener module welcome message
-    generateOpenerWelcomeMessage(character) {
-        const openerGreetings = [
+    const welcomeMessages = {
+        pitch: [
+            `Hi, this is ${character.name}. Go ahead with your pitch.`,
+            `${character.name} speaking. I'll give you two minutes, what's your pitch?`,
+            `This is ${character.name}. You've got my attention, now pitch me.`
+        ],
+        fullcall: [
             `Hello, this is ${character.name}.`,
-            `${character.name} speaking.`,
-            `This is ${character.name}, how can I help you?`,
-            `${character.name} here.`,
-            `Hello, ${character.name} speaking. Who is this?`
-        ];
-        
-        return openerGreetings[Math.floor(Math.random() * openerGreetings.length)];
-    }
+            `${character.name} speaking, who is this?`,
+            `This is ${character.name}, how can I help you?`
+        ],
+        powerhour: [
+            `Call ${this.app.getCurrentProgress() + 1}. Hello, this is ${character.name}. You've got 30 seconds.`,
+            `Power Hour Call ${this.app.getCurrentProgress() + 1}. This is ${character.name}, make it quick.`
+        ]
+    };
+    
+    const messages = welcomeMessages[currentModule] || welcomeMessages.opener;
+    return messages[Math.floor(Math.random() * messages.length)];
+}
+    
+    // CRITICAL FIX: Better welcome message for opener
+generateOpenerWelcomeMessage(character) {
+    const openerGreetings = [
+        `Hello, this is ${character.name}.`,
+        `${character.name} speaking.`,
+        `This is ${character.name}, how can I help you?`,
+        `${character.name} here.`,
+        `Hello, ${character.name} speaking. Who is this?`
+    ];
+    
+    return openerGreetings[Math.floor(Math.random() * openerGreetings.length)];
+}
     
     generateWarmupMessage(character) {
         const warmupPrompts = [
@@ -408,72 +408,100 @@ export class CallManager {
     
     // CRITICAL FIX: Enhanced handleSuccessfulInteraction with conversation flow logic
     handleSuccessfulInteraction(userInput, aiResponse) {
-        const currentModule = this.app.getCurrentModule();
-        
-        // Handle different modules differently
-        if (currentModule === 'warmup') {
-            this.handleWarmupInteraction();
-        } else if (currentModule === 'opener') {
-            this.handleOpenerFlowInteraction(userInput, aiResponse);
-        } else {
-            this.handleStandardInteraction();
-        }
-    }
+    const currentModule = this.app.getCurrentModule();
     
-    // CRITICAL FIX: Handle opener flow progression
-    handleOpenerFlowInteraction(userInput, aiResponse) {
-        const currentMode = this.app.getCurrentMode();
-        
-        console.log('🔄 Opener Flow - Current State:', this.conversationState);
-        console.log('🔄 User Input:', userInput);
-        console.log('🔄 AI Response:', aiResponse);
-        
-        // Analyze what stage we're in based on the conversation
-        if (currentMode === 'practice') {
-            this.handleOpenerPracticeFlow(userInput, aiResponse);
-        } else if (currentMode === 'marathon') {
-            this.handleOpenerMarathonFlow(userInput, aiResponse);
-        }
-    }
+    console.log('✅ Successful interaction:', {
+        module: currentModule,
+        userInput: userInput.substring(0, 50) + '...',
+        aiResponse: aiResponse.substring(0, 50) + '...',
+        currentStage: this.conversationState?.stage
+    });
     
-    // CRITICAL FIX: Handle practice mode - complete flow
-    handleOpenerPracticeFlow(userInput, aiResponse) {
-        // In practice mode, go through complete flow: opener → objection → pitch → meeting
+    // Handle different modules differently
+    if (currentModule === 'warmup') {
+        this.handleWarmupInteraction();
+    } else if (currentModule === 'opener') {
+        this.handleOpenerFlowInteraction(userInput, aiResponse);
+    } else {
+        this.handleStandardInteraction();
+    }
+}
+    
+    // CRITICAL FIX: Better opener flow handling
+handleOpenerFlowInteraction(userInput, aiResponse) {
+    const currentMode = this.app.getCurrentMode();
+    
+    console.log('🔄 Opener Flow Interaction:', {
+        currentStage: this.conversationState.stage,
+        userInputLength: userInput.length,
+        mode: currentMode
+    });
+    
+    if (currentMode === 'practice') {
+        this.handleOpenerPracticeFlow(userInput, aiResponse);
+    } else if (currentMode === 'marathon') {
+        this.handleOpenerMarathonFlow(userInput, aiResponse);
+    }
+}
+
+    
+   // CRITICAL FIX: Improved practice flow with better progression
+handleOpenerPracticeFlow(userInput, aiResponse) {
+    const lowerInput = userInput.toLowerCase();
+    const lowerResponse = aiResponse.toLowerCase();
+    
+    console.log('🎯 Practice Flow - Current Stage:', this.conversationState.stage);
+    
+    if (this.conversationState.stage === 'opener' && !this.conversationState.openerDelivered) {
+        // User just delivered opener
+        this.conversationState.openerDelivered = true;
         
-        if (this.conversationState.stage === 'opener' && !this.conversationState.openerDelivered) {
-            // User just delivered opener, AI should give objection
-            this.conversationState.openerDelivered = true;
+        // Check if AI gave an objection (common signs)
+        const aiGaveObjection = lowerResponse.includes('what') || lowerResponse.includes('not interested') ||
+                              lowerResponse.includes('don\'t take') || lowerResponse.includes('busy') ||
+                              lowerResponse.includes('time');
+        
+        if (aiGaveObjection) {
             this.conversationState.stage = 'objection';
-            console.log('✅ Opener delivered, moving to objection stage');
-            
-        } else if (this.conversationState.stage === 'objection' && !this.conversationState.objectionHandled) {
-            // User handled objection, now ask for pitch
+            console.log('✅ Opener delivered, AI gave objection, moving to objection stage');
+        } else {
+            console.log('✅ Opener delivered, continuing conversation');
+        }
+        
+    } else if (this.conversationState.stage === 'objection' && !this.conversationState.objectionHandled) {
+        // User handled objection
+        const handledWell = lowerInput.includes('understand') || lowerInput.includes('appreciate') ||
+                           lowerInput.includes('respect') || lowerInput.includes('makes sense');
+        
+        if (handledWell) {
             this.conversationState.objectionHandled = true;
             this.conversationState.stage = 'pitch';
-            console.log('✅ Objection handled, moving to pitch stage');
-            
-            // AI should ask for pitch
-            setTimeout(() => {
-                if (this.app.isInCall()) {
-                    this.app.speechManager.speakAI("Good response! Now give me your pitch.");
-                }
-            }, 1000);
-            
-        } else if (this.conversationState.stage === 'pitch' && !this.conversationState.pitchDelivered) {
-            // User delivered pitch, ask for meeting
+            console.log('✅ Objection handled well, moving to pitch stage');
+        } else {
+            console.log('⚠️ Objection handling needs work, staying in objection stage');
+        }
+        
+    } else if (this.conversationState.stage === 'pitch' && !this.conversationState.pitchDelivered) {
+        // User delivered pitch
+        const goodPitch = lowerInput.includes('help') || lowerInput.includes('save') ||
+                         lowerInput.includes('improve') || lowerInput.includes('solution') ||
+                         lowerInput.includes('benefit');
+        
+        if (goodPitch) {
             this.conversationState.pitchDelivered = true;
             this.conversationState.stage = 'meeting';
-            console.log('✅ Pitch delivered, moving to meeting stage');
-            
-            // AI should respond to pitch and allow meeting ask
-            setTimeout(() => {
-                if (this.app.isInCall()) {
-                    this.app.speechManager.speakAI("Interesting. What exactly are you proposing?");
-                }
-            }, 1000);
-            
-        } else if (this.conversationState.stage === 'meeting' && !this.conversationState.meetingRequested) {
-            // User asked for meeting, complete the practice
+            console.log('✅ Good pitch delivered, moving to meeting stage');
+        } else {
+            console.log('⚠️ Pitch needs improvement, staying in pitch stage');
+        }
+        
+    } else if (this.conversationState.stage === 'meeting' && !this.conversationState.meetingRequested) {
+        // User asked for meeting
+        const askedMeeting = lowerInput.includes('meeting') || lowerInput.includes('call') ||
+                           lowerInput.includes('discuss') || lowerInput.includes('available') ||
+                           lowerInput.includes('time') || lowerInput.includes('schedule');
+        
+        if (askedMeeting) {
             this.conversationState.meetingRequested = true;
             this.conversationState.stage = 'complete';
             console.log('✅ Meeting requested, practice complete');
@@ -481,40 +509,51 @@ export class CallManager {
             // Complete the practice session
             setTimeout(() => {
                 if (this.app.isInCall()) {
-                    this.app.speechManager.speakAI("Alright, let me check my calendar. Good work on that complete flow!");
-                    setTimeout(() => {
-                        this.completeCurrentCall();
-                    }, 2000);
+                    this.completeCurrentCall();
                 }
-            }, 1000);
+            }, 3000);
+        } else {
+            console.log('⚠️ Need to ask for meeting, staying in meeting stage');
         }
     }
     
-    // CRITICAL FIX: Handle marathon mode - objection practice
-    handleOpenerMarathonFlow(userInput, aiResponse) {
-        // In marathon mode, focus on opener + objection handling (multiple objections)
-        this.app.setCurrentProgress(this.app.getCurrentProgress() + 1);
+    // Show quick feedback
+    this.showQuickSuccess();
+}
+
+    // CRITICAL FIX: Better marathon flow
+handleOpenerMarathonFlow(userInput, aiResponse) {
+    // In marathon mode, progress after each successful interaction
+    this.app.setCurrentProgress(this.app.getCurrentProgress() + 1);
+    
+    const currentProgress = this.app.getCurrentProgress();
+    const maxProgress = this.app.getMaxProgress();
+    
+    console.log(`✅ Marathon Progress: ${currentProgress}/${maxProgress}`);
+    
+    this.updateCallProgress();
+    
+    if (currentProgress >= maxProgress) {
+        console.log(`🎯 Marathon complete!`);
+        this.completeCurrentCall();
+    } else {
+        this.showQuickSuccess();
         
-        const currentProgress = this.app.getCurrentProgress();
-        const maxProgress = this.app.getMaxProgress();
-        
-        console.log(`✅ Marathon Progress: ${currentProgress}/${maxProgress}`);
-        
-        this.updateCallProgress();
-        
-        if (currentProgress >= maxProgress) {
-            console.log(`🎯 Marathon complete!`);
-            this.completeCurrentCall();
-        } else {
-            this.showQuickSuccess();
-            // Continue with next objection
-            setTimeout(() => {
-                if (this.app.isInCall()) {
-                    this.generateNextMarathonObjection();
-                }
-            }, 2000);
-        }
+        // Wait a bit then continue with next interaction
+        setTimeout(() => {
+            if (this.app.isInCall()) {
+                // Reset for next interaction but keep in opener mode
+                this.conversationState.stage = 'opener';
+                this.conversationState.openerDelivered = false;
+                this.conversationState.objectionHandled = false;
+                
+                // AI will naturally continue the conversation
+                console.log('🔄 Ready for next marathon interaction');
+            }
+        }, 1500);
     }
+}
+
     
     // CRITICAL FIX: Generate next objection for marathon mode
     generateNextMarathonObjection() {
