@@ -1,0 +1,43 @@
+{
+  "name": "cold-call-roleplay-trainer",
+  "version": "2.0.0",
+  "description": "AI-powered cold call training platform with module gating, phone interface, and realistic voice synthesis",
+  "main": "index.html",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "mkdir -p public/modules && cp index.html styles.css app.js public/ && cp modules/*.js public/modules/",
+    "deploy": "vercel --prod",
+    "start": "vercel dev",
+    "test": "echo 'Tests not implemented yet'",
+    "clean": "rm -rf .vercel .next public"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.10",
+    "aws-sdk": "^2.1692.0",
+    "resend": "^4.5.1"
+  },
+  "devDependencies": {
+    "vercel": "^32.5.0"
+  },
+  "keywords": [
+    "sales",
+    "training",
+    "cold-calling",
+    "ai",
+    "roleplay",
+    "speech-recognition",
+    "text-to-speech",
+    "openai",
+    "aws-polly",
+    "vercel"
+  ],
+  "author": "Harmony",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/harmonymwirigi/cold-call-trainer"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

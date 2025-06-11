@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cold Call Trainer - Admin Panel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { 
+            font-family: 'Inter', Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 { color: #2d3748; margin-bottom: 30px; text-align: center; }
+        .form-group { margin-bottom: 20px; }
+        label { 
+            display: block; 
+            margin-bottom: 8px; 
+            font-weight: 600; 
+            color: #4a5568; 
+        }
+        input, select { 
+            width: 100%; 
+            padding: 12px; 
+            border: 2px solid #e2e8f0; 
+            border-radius: 8px; 
+            font-size: 16px;
+            font-family: inherit;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        button { 
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white; 
+            padding: 12px 24px; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 16px;
+            font-weight: 600;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+        button:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .result { 
+            margin-top: 20px; 
+            padding: 15px; 
+            border-radius: 8px; 
+            font-weight: 500;
+        }
+        .success { 
+            background: #d4edda; 
+            color: #155724; 
+            border: 1px solid #c3e6cb; 
+        }
+        .error { 
+            background: #f8d7da; 
+            color: #721c24; 
+            border: 1px solid #f5c6cb; 
+        }
+        .loading {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .user-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .access-level {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .access-unlimited { background: #d4edda; color: #155724; }
+        .access-unlimited_locked { background: #fff3cd; color: #856404; }
+        .access-limited { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Cold Call Trainer Admin</h1>
+        
+        <div class="form-group">
+            <label for="adminKey">🔑 Admin API Key:</label>
+            <input type="password" id="adminKey" placeholder="Enter your admin API key">
+        </div>
+        
+        <div class="form-group">
+            <label for="userEmail">📧 User Email:</label>
+            <input type="email" id="userEmail" placeholder="user@example.com">
+            <button onclick="lookupUser()" style="margin-top: 10px; background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);">
+                🔍 Lookup User
+            </button>
+        </div>
+        
+        <div id="userInfo" style="display: none;">
+            <div class="user-info">
+                <h3>👤 User Information</h3>
+                <div id="userDetails"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="accessLevel">🎭 New Access Level:</label>
+                <select id="accessLevel">
+                    <option value="unlimited">🟢 Unlimited - All modules unlocked (50h/month)</option>
+                    <option value="unlimited_locked">🟡 Unlimited Locked - Marathon unlocks for 24h (50h/month)</option>
+                    <option value="limited">🔴 Limited - 3 hours total, permanent unlocks</option>
+                </select>
+            </div>
+            
+            <button onclick="setAccessLevel()" id="updateBtn">
+                ✅ Update Access Level
+            </button>
+        </div>
+        
+        <div id="result"></div>
+        
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+            <h3>📊 Quick Actions</h3>
+            <button onclick="showStats()" style="background: linear-gradient(135deg, #6f42c1 0%, #5a2d91 100%); margin-bottom: 10px;">
+                📈 View System Stats
+            </button>
+            <button onclick="exportUsers()" style="background: linear-gradient(135deg, #fd7e14 0%, #e55a00 100%);">
+                📤 Export User Data
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        
+        async function lookupUser() {
+            const adminKey = document.getElementById('adminKey').value;
+            const userEmail = document.getElementById('userEmail').value;
+            
+            if (!adminKey || !userEmail) {
+                showResult('Please fill in both admin key and email', 'error');
+                return;
+            }
+            
+            showResult('Looking up user...', 'loading');
+            
+            try {
+                const response = await fetch('/api/get-user-by-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: userEmail, adminKey })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to lookup user');
+                }
+                
+                currentUser = data.user;
+                displayUserInfo(currentUser);
+                showResult('User found successfully!', 'success');
+                
+            } catch (error) {
+                showResult(`Error: ${error.message}`, 'error');
+            }
+        }
+        
+        function displayUserInfo(user) {
+            const userInfo = document.getElementById('userInfo');
+            const userDetails = document.getElementById('userDetails');
+            const accessLevel = document.getElementById('accessLevel');
+            
+            userDetails.innerHTML = `
+                <p><strong>Name:</strong> ${user.first_name}</p>
+                <p><strong>Email:</strong> ${user.email}</p>
+                <p><strong>Current Access:</strong> <span class="access-level access-${user.access_level}">${user.access_level}</span></p>
+                <p><strong>Joined:</strong> ${new Date(user.created_at).toLocaleDateString()}</p>
+                <p><strong>Last Login:</strong> ${user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never'}</p>
+                <p><strong>Email Verified:</strong> ${user.email_verified ? '✅ Yes' : '❌ No'}</p>
+            `;
+            
+            // Set current access level in dropdown
+            accessLevel.value = user.access_level;
+            userInfo.style.display = 'block';
+        }
+        
+        async function setAccessLevel() {
+            if (!currentUser) {
+                showResult('Please lookup a user first', 'error');
+                return;
+            }
+            
+            const adminKey = document.getElementById('adminKey').value;
+            const accessLevel = document.getElementById('accessLevel').value;
+            const updateBtn = document.getElementById('updateBtn');
+            
+            updateBtn.disabled = true;
+            updateBtn.textContent = 'Updating...';
+            showResult('Updating access level...', 'loading');
+            
+            try {
+                const response = await fetch('/api/set-user-access-level', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: currentUser.id,
+                        accessLevel: accessLevel,
+                        adminKey: adminKey
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    currentUser.access_level = accessLevel;
+                    displayUserInfo(currentUser);
+                    showResult(`✅ Success: ${data.message}`, 'success');
+                } else {
+                    showResult(`❌ Error: ${data.error}`, 'error');
+                }
+                
+            } catch (error) {
+                showResult(`❌ Error: ${error.message}`, 'error');
+            } finally {
+                updateBtn.disabled = false;
+                updateBtn.textContent = '✅ Update Access Level';
+            }
+        }
+        
+        async function showStats() {
+            showResult('This feature coming soon...', 'loading');
+        }
+        
+        async function exportUsers() {
+            showResult('This feature coming soon...', 'loading');
+        }
+        
+        function showResult(message, type) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = `result ${type}`;
+            resultDiv.innerHTML = message;
+        }
+        
+        // Auto-save admin key in session storage for convenience
+        document.getElementById('adminKey').addEventListener('input', function() {
+            sessionStorage.setItem('adminKey', this.value);
+        });
+        
+        // Load saved admin key
+        window.addEventListener('load', function() {
+            const savedKey = sessionStorage.getItem('adminKey');
+            if (savedKey) {
+                document.getElementById('adminKey').value = savedKey;
+            }
+        });
+    </script>
+</body>
+</html>
