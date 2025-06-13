@@ -13,6 +13,10 @@ export class ModuleManager {
     init() {
         this.modules = this.initializeModules();
         this.moduleProgress = this.app.progressManager.loadProgress().modules || {};
+        
+        // Check temporary unlocks
+        this.checkTemporaryUnlocks();
+        
         console.log('📚 Module Manager initialized');
     }
     
@@ -314,6 +318,7 @@ export class ModuleManager {
         };
     }
     
+    
     startModule(moduleId, mode) {
         const module = this.modules[moduleId];
         if (!module) {
@@ -327,7 +332,6 @@ export class ModuleManager {
         }
         
         if (!module.unlocked) {
-            // Show detailed unlock requirements
             this.showUnlockRequirements(moduleId);
             return;
         }
@@ -343,14 +347,16 @@ export class ModuleManager {
                 this.app.uiManager.showError('Legend mode is not available for this module.');
                 return;
             }
-            if (!module.legendAvailable) {
-                this.app.uiManager.showError('Complete the marathon first to unlock Legend Mode.');
+            
+            // Check if legend attempt is available
+            const legendAttemptUsed = localStorage.getItem('legend_attempt_used') === 'true';
+            if (legendAttemptUsed) {
+                this.app.uiManager.showError('You need to pass Marathon again to unlock another Legend attempt.');
                 return;
             }
-            if (module.legendCompleted) {
-                this.app.uiManager.showError('Legend Mode can only be completed once.');
-                return;
-            }
+            
+            // Don't check marathonCompleted for legend availability anymore
+            // Legend is available after any marathon pass
         }
         
         // Set up module parameters
@@ -369,6 +375,64 @@ export class ModuleManager {
         
         this.app.callManager.initializeCall();
     }
+    unlockModulesTemporarily(moduleIds, hours = 24) {
+        const unlockTime = Date.now();
+        const expiryTime = unlockTime + (hours * 60 * 60 * 1000);
+        
+        moduleIds.forEach(moduleId => {
+            const module = this.modules[moduleId];
+            if (module) {
+                // Store temporary unlock in localStorage
+                const tempUnlocks = JSON.parse(localStorage.getItem('temporary_unlocks') || '{}');
+                tempUnlocks[moduleId] = {
+                    unlockTime,
+                    expiryTime,
+                    hours
+                };
+                localStorage.setItem('temporary_unlocks', JSON.stringify(tempUnlocks));
+                
+                // Temporarily unlock the module
+                module.unlocked = true;
+                console.log(`🔓 Module ${moduleId} unlocked for ${hours} hours`);
+            }
+        });
+        
+        // Save state
+        this.app.progressManager.saveProgress();
+    }
+    
+    // ADD this method to check temporary unlocks
+    checkTemporaryUnlocks() {
+        const tempUnlocks = JSON.parse(localStorage.getItem('temporary_unlocks') || '{}');
+        const now = Date.now();
+        
+        Object.entries(tempUnlocks).forEach(([moduleId, unlock]) => {
+            const module = this.modules[moduleId];
+            if (module && unlock.expiryTime) {
+                if (now < unlock.expiryTime) {
+                    // Still valid
+                    module.unlocked = true;
+                    const hoursLeft = Math.ceil((unlock.expiryTime - now) / (60 * 60 * 1000));
+                    console.log(`🔓 Module ${moduleId} unlocked for ${hoursLeft} more hours`);
+                } else {
+                    // Expired
+                    if (!this.isPermanentlyUnlocked(moduleId)) {
+                        module.unlocked = false;
+                    }
+                    // Remove from temporary unlocks
+                    delete tempUnlocks[moduleId];
+                }
+            }
+        });
+        
+        localStorage.setItem('temporary_unlocks', JSON.stringify(tempUnlocks));
+    }
+    
+    isPermanentlyUnlocked(moduleId) {
+        // Check if module is permanently unlocked (e.g., opener is always unlocked)
+        return moduleId === 'opener' || this.moduleProgress[moduleId]?.permanentUnlock;
+    }
+    
     
     // ENHANCED: Show detailed unlock requirements
     showUnlockRequirements(moduleId) {
@@ -433,47 +497,62 @@ export class ModuleManager {
     }
     
     
-async completeModule(moduleId, mode) {
-    const module = this.modules[moduleId];
-    if (!module) return;
-    
-    console.log(`🎯 Completing module: ${moduleId} in ${mode} mode`);
-    
-    if (mode === 'marathon') {
-        module.marathonCompleted = true;
-        module.legendAvailable = true;
+    async completeModule(moduleId, mode) {
+        const module = this.modules[moduleId];
+        if (!module) return;
         
-        // Unlock next module via backend
-        await this.unlockNextModuleViaBackend(moduleId);
-        this.showMarathonCompletionModal(module);
+        console.log(`🎯 Completing module: ${moduleId} in ${mode} mode`);
         
-    } else if (mode === 'legend') {
-        module.legendCompleted = true;
-        this.app.uiManager.showSuccess(`🏆 Legend Mode completed! You're a master of ${module.name}!`);
-        
-    } else if (mode === 'practice') {
-        if (moduleId === 'warmup') {
-            const score = this.app.getCurrentProgress();
-            if (score >= module.passingScore) {
-                await this.unlockNextModuleViaBackend(moduleId);
-                this.showWarmupPassModal(score, module.totalQuestions);
+        if (mode === 'marathon') {
+            module.marathonCompleted = true;
+            
+            // For opener module, handle the special unlocks
+            if (moduleId === 'opener') {
+                // Unlock pitch module for 24 hours
+                this.unlockModulesTemporarily(['pitch'], 24);
+                
+                // Reset legend attempt flag
+                localStorage.setItem('legend_attempt_used', 'false');
+                
+                // Track marathon passes
+                let marathonPasses = parseInt(localStorage.getItem('marathon_passes') || '0');
+                localStorage.setItem('marathon_passes', (marathonPasses + 1).toString());
             } else {
-                this.app.uiManager.showError(`Challenge failed. Score: ${score}/${module.totalQuestions}. Need ${module.passingScore} to pass.`);
+                // Other modules use the existing unlock system
+                await this.unlockNextModuleViaBackend(moduleId);
             }
-        } else {
-            await this.unlockNextModuleViaBackend(moduleId);
-            this.showPracticeCompletionModal(module);
+            
+            // Don't show marathon completion modal here - CallManager handles it
+            
+        } else if (mode === 'legend') {
+            module.legendCompleted = true;
+            
+            // Legend completion doesn't unlock anything, just bragging rights
+            console.log('🏆 Legend mode completed!');
+            
+        } else if (mode === 'practice') {
+            // Existing practice mode logic
+            if (moduleId === 'warmup') {
+                const score = this.app.getCurrentProgress();
+                if (score >= module.passingScore) {
+                    await this.unlockNextModuleViaBackend(moduleId);
+                    this.showWarmupPassModal(score, module.totalQuestions);
+                } else {
+                    this.app.uiManager.showError(`Challenge failed. Score: ${score}/${module.totalQuestions}. Need ${module.passingScore} to pass.`);
+                }
+            } else {
+                // Regular practice completion
+                this.showPracticeCompletionModal(module);
+            }
         }
+        
+        this.updateModuleProgress(moduleId, mode);
+        this.app.progressManager.saveProgress();
+        this.app.uiManager.updateModuleUI();
+        this.app.uiManager.updateProgressStats();
+        
+        this.app.logActivity('module_completed', { module: moduleId, mode });
     }
-    
-    this.updateModuleProgress(moduleId, mode);
-    this.app.progressManager.saveProgress();
-    this.app.uiManager.updateModuleUI();
-    this.app.uiManager.updateProgressStats();
-    
-    this.app.logActivity('module_completed', { module: moduleId, mode });
-}
-
 // Add this new method to ModuleManager:
 async unlockNextModuleViaBackend(moduleId) {
     const moduleOrder = ['opener', 'pitch', 'warmup', 'fullcall', 'powerhour'];
@@ -625,7 +704,46 @@ async unlockNextModuleViaBackend(moduleId) {
         
         return null;
     }
-    
+    updateModuleCardButtons(card, module) {
+        const practiceBtn = card.querySelector('.btn-practice');
+        const marathonBtn = card.querySelector('.btn-marathon');
+        const legendBtn = card.querySelector('.btn-legend');
+        
+        if (module.unlocked) {
+            // Practice always available
+            if (practiceBtn) {
+                practiceBtn.disabled = false;
+                practiceBtn.classList.remove('disabled');
+            }
+            
+            // Marathon available if module has it
+            if (marathonBtn && module.hasMarathon) {
+                marathonBtn.disabled = false;
+                marathonBtn.style.display = 'inline-block';
+                
+                if (module.marathonCompleted) {
+                    marathonBtn.innerHTML = '✅ Marathon';
+                }
+            }
+            
+            // Legend button only for opener module
+            if (legendBtn && module.id === 'opener') {
+                const legendAttemptUsed = localStorage.getItem('legend_attempt_used') === 'true';
+                const marathonPasses = parseInt(localStorage.getItem('marathon_passes') || '0');
+                
+                if (marathonPasses > 0 && !legendAttemptUsed) {
+                    legendBtn.style.display = 'inline-block';
+                    legendBtn.disabled = false;
+                    legendBtn.classList.remove('disabled');
+                    legendBtn.innerHTML = '⚡ Legend (6x)';
+                } else {
+                    legendBtn.style.display = 'none';
+                }
+            } else if (legendBtn) {
+                legendBtn.style.display = 'none';
+            }
+        }
+    }
     updateModuleProgress(moduleId, mode) {
         if (!this.moduleProgress[moduleId]) {
             this.moduleProgress[moduleId] = { 

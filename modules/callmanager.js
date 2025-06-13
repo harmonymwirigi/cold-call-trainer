@@ -15,7 +15,9 @@ export class CallManager {
         this.isRinging = false;
         this.ringTimeout = null;
         this.callSequenceActive = false;
-        
+        this.marathonState = null;
+        this.legendState = null;
+        this.objectionPool = []; // Track available objections for the run
         // CRITICAL FIX: Track conversation flow state
         this.conversationState = {
             stage: 'opener', // 'opener', 'objection', 'pitch', 'meeting', 'complete'
@@ -406,9 +408,619 @@ generateOpenerWelcomeMessage(character) {
         return `Welcome to warm-up training! I'm ${character.name}. Question ${questionNumber} of 25: ${currentQuestion}`;
     }
     
+initializeMarathonState() {
+    // Get all 29 objections
+    const allObjections = [
+        "What's this about?",
+        "I'm not interested",
+        "We don't take cold calls",
+        "Now is not a good time",
+        "I have a meeting",
+        "Can you call me later?",
+        "I'm about to go into a meeting",
+        "Send me an email",
+        "Can you send me the information?",
+        "Can you message me on WhatsApp?",
+        "Who gave you this number?",
+        "This is my personal number",
+        "Where did you get my number?",
+        "What are you trying to sell me?",
+        "Is this a sales call?",
+        "Is this a cold call?",
+        "Are you trying to sell me something?",
+        "We are ok for the moment",
+        "We are all good / all set",
+        "We're not looking for anything right now",
+        "We are not changing anything",
+        "How long is this going to take?",
+        "Is this going to take long?",
+        "What company are you calling from?",
+        "Who are you again?",
+        "Where are you calling from?",
+        "I never heard of you",
+        "Not interested right now",
+        "Just send me the details"
+    ];
+    
+    this.marathonState = {
+        currentCall: 1,
+        totalCalls: 10,
+        passedCalls: 0,
+        failedCalls: 0,
+        callResults: [],
+        objectionPool: [...allObjections], // Fresh pool for this run
+        usedObjections: new Set(),
+        coachingData: {
+            sales: [],
+            grammar: [],
+            vocabulary: [],
+            pronunciation: []
+        }
+    };
+    
+    console.log('🏃 Marathon mode initialized - 10 calls, need 6 to pass');
+}
+
+initializeLegendState() {
+    const allObjections = [
+        "What's this about?",
+        "I'm not interested",
+        "We don't take cold calls",
+        "Now is not a good time",
+        "I have a meeting",
+        "Can you call me later?"
+    ]; // Using first 6 for Legend mode
+    
+    this.legendState = {
+        currentCall: 1,
+        totalCalls: 6,
+        passedCalls: 0,
+        failedCalls: 0,
+        callResults: [],
+        objectionPool: [...allObjections],
+        usedObjections: new Set(),
+        coachingData: {
+            sales: [],
+            grammar: [],
+            vocabulary: [],
+            pronunciation: []
+        }
+    };
+    
+    // Mark legend attempt as used
+    localStorage.setItem('legend_attempt_used', 'true');
+    
+    console.log('⚡ Legend mode initialized - 6 calls, need perfect 6/6');
+}
+
+getNextObjection(isLegend = false) {
+    const state = isLegend ? this.legendState : this.marathonState;
+    
+    // Filter out used objections
+    const availableObjections = state.objectionPool.filter(obj => !state.usedObjections.has(obj));
+    
+    if (availableObjections.length === 0) {
+        // Should not happen in a single run, but just in case
+        console.warn('No more unique objections available');
+        return state.objectionPool[0];
+    }
+    
+    // Select random objection
+    const selectedObjection = availableObjections[Math.floor(Math.random() * availableObjections.length)];
+    state.usedObjections.add(selectedObjection);
+    
+    return selectedObjection;
+}
+
+// Marathon/Legend specific interaction handler
+handleMarathonLegendInteraction(userInput, aiResponse, mode) {
+    const state = mode === 'legend' ? this.legendState : this.marathonState;
+    const callNumber = state.currentCall;
+    
+    // Stop silence detection when user speaks
+    this.stopSilenceDetection();
+    
+    // Add to call history
+    if (!state.callResults[callNumber - 1]) {
+        state.callResults[callNumber - 1] = {
+            callNumber,
+            stages: {},
+            passed: true,
+            failureReason: null
+        };
+    }
+    
+    const currentCallResult = state.callResults[callNumber - 1];
+    
+    // Evaluate based on current stage
+    const evaluation = this.app.speechManager.evaluateRoleplay1Response(userInput, this.conversationState.stage);
+    currentCallResult.stages[this.conversationState.stage] = evaluation;
+    
+    // Collect coaching data (but don't display yet)
+    this.collectCoachingData(userInput, evaluation, state.coachingData);
+    
+    console.log(`🎯 ${mode} Call ${callNumber} - Stage: ${this.conversationState.stage}, Pass: ${evaluation.pass}`);
+    
+    // Handle stage progression
+    switch (this.conversationState.stage) {
+        case 'opener':
+            this.handleMarathonOpenerStage(evaluation, mode);
+            break;
+            
+        case 'objection':
+            this.handleMarathonObjectionStage(evaluation, mode);
+            break;
+            
+        case 'pitch':
+            this.handleMarathonPitchStage(evaluation, mode);
+            break;
+            
+        case 'discovery':
+            this.handleMarathonDiscoveryStage(evaluation, mode);
+            break;
+    }
+    
+    // Restart silence detection after AI speaks
+    setTimeout(() => {
+        if (this.app.isInCall()) {
+            this.startSilenceDetection();
+        }
+    }, 2000);
+}
+
+handleMarathonOpenerStage(evaluation, mode) {
+    const state = mode === 'legend' ? this.legendState : this.marathonState;
+    const currentCallResult = state.callResults[state.currentCall - 1];
+    
+    if (!evaluation.pass) {
+        // Failed opener
+        currentCallResult.passed = false;
+        currentCallResult.failureReason = 'opener';
+        this.handleMarathonCallFailure('opener', mode);
+    } else if (mode === 'marathon' && Math.random() < 0.25) {
+        // Random hangup (Marathon only, 20-30% chance)
+        currentCallResult.passed = false;
+        currentCallResult.failureReason = 'random_hangup';
+        this.handleMarathonCallFailure('random', mode);
+    } else {
+        // Proceed to objection
+        this.conversationState.stage = 'objection';
+        console.log('✅ Opener passed - moving to objection stage');
+    }
+}
+
+handleMarathonObjectionStage(evaluation, mode) {
+    const state = mode === 'legend' ? this.legendState : this.marathonState;
+    const currentCallResult = state.callResults[state.currentCall - 1];
+    
+    if (!evaluation.pass) {
+        currentCallResult.passed = false;
+        currentCallResult.failureReason = 'objection';
+        this.handleMarathonCallFailure('objection', mode);
+    } else {
+        this.conversationState.stage = 'pitch';
+        console.log('✅ Objection handling passed - moving to pitch stage');
+        
+        setTimeout(() => {
+            this.app.speechManager.speakAI("Alright, what exactly are you offering?");
+        }, 1000);
+    }
+}
+
+handleMarathonPitchStage(evaluation, mode) {
+    const state = mode === 'legend' ? this.legendState : this.marathonState;
+    const currentCallResult = state.callResults[state.currentCall - 1];
+    
+    if (!evaluation.pass) {
+        currentCallResult.passed = false;
+        currentCallResult.failureReason = 'pitch';
+        this.handleMarathonCallFailure('pitch', mode);
+    } else {
+        this.conversationState.stage = 'discovery';
+        console.log('✅ Pitch passed - waiting for discovery question');
+    }
+}
+
+handleMarathonDiscoveryStage(evaluation, mode) {
+    const state = mode === 'legend' ? this.legendState : this.marathonState;
+    const currentCallResult = state.callResults[state.currentCall - 1];
+    
+    if (!evaluation.pass) {
+        currentCallResult.passed = false;
+        currentCallResult.failureReason = 'discovery';
+        this.handleMarathonCallFailure('discovery', mode);
+    } else {
+        // Success - this call passed
+        this.handleMarathonCallSuccess(mode);
+    }
+}
+
+handleMarathonCallFailure(failureStage, mode) {
+    const state = mode === 'legend' ? this.legendState : this.marathonState;
+    
+    state.failedCalls++;
+    console.log(`❌ ${mode} Call ${state.currentCall} failed at ${failureStage}`);
+    
+    // AI hangs up
+    const hangupPhrases = {
+        opener: ["I'm not interested, goodbye.", "Please don't call again."],
+        objection: ["I really don't have time for this.", "Not interested, thanks."],
+        pitch: ["That doesn't sound relevant to us.", "We're not looking for that."],
+        discovery: ["I don't think this is for us.", "We're all set, goodbye."],
+        random: ["Actually, I need to go.", "Something just came up, bye."]
+    };
+    
+    const phrases = hangupPhrases[failureStage] || hangupPhrases.objection;
+    const hangupPhrase = phrases[Math.floor(Math.random() * phrases.length)];
+    
+    this.app.speechManager.speakAI(hangupPhrase);
+    
+    // Check if Legend mode should end immediately
+    if (mode === 'legend') {
+        setTimeout(() => {
+            this.endMarathonLegendRun(mode);
+        }, 3000);
+    } else {
+        // Marathon continues to next call
+        setTimeout(() => {
+            this.proceedToNextMarathonCall();
+        }, 3000);
+    }
+}
+
+handleMarathonCallSuccess(mode) {
+    const state = mode === 'legend' ? this.legendState : this.marathonState;
+    
+    state.passedCalls++;
+    console.log(`✅ ${mode} Call ${state.currentCall} passed!`);
+    
+    // Positive response
+    const successPhrases = [
+        "That's actually interesting. Let me check my calendar.",
+        "Sounds helpful. I'll discuss with my team.",
+        "Okay, that makes sense. Send me a follow-up."
+    ];
+    
+    const phrase = successPhrases[Math.floor(Math.random() * successPhrases.length)];
+    this.app.speechManager.speakAI(phrase);
+    
+    // Move to next call or end run
+    setTimeout(() => {
+        if (state.currentCall >= state.totalCalls) {
+            this.endMarathonLegendRun(mode);
+        } else {
+            this.proceedToNextMarathonCall();
+        }
+    }, 3000);
+}
+
+proceedToNextMarathonCall() {
+    const state = this.app.getCurrentMode() === 'legend' ? this.legendState : this.marathonState;
+    
+    state.currentCall++;
+    
+    // Reset conversation state for new call
+    this.conversationState = {
+        stage: 'opener',
+        openerDelivered: false,
+        objectionHandled: false,
+        pitchDelivered: false,
+        discoveryAsked: false
+    };
+    
+    // Update UI progress
+    this.updateMarathonProgress();
+    
+    // Start new call
+    console.log(`📞 Starting call ${state.currentCall}/${state.totalCalls}`);
+    
+    // Simulate new call
+    this.app.audioManager.playRingTone();
+    
+    setTimeout(() => {
+        this.app.audioManager.stopRingTone();
+        
+        // Simple greeting
+        const greetings = ["Hello?", "Yes?", "Speaking."];
+        const greeting = greetings[Math.floor(Math.random() * greetings.length)];
+        
+        this.app.speechManager.speakAI(greeting);
+        
+        // Start silence detection
+        setTimeout(() => {
+            if (this.app.isInCall()) {
+                this.startSilenceDetection();
+                this.app.speechManager.startContinuousListening();
+            }
+        }, 2000);
+    }, 3000);
+}
+
+endMarathonLegendRun(mode) {
+    const state = mode === 'legend' ? this.legendState : this.marathonState;
+    
+    // Stop any ongoing processes
+    this.stopSilenceDetection();
+    
+    // Calculate results
+    const passed = mode === 'legend' ? 
+        state.passedCalls === 6 : 
+        state.passedCalls >= 6;
+    
+    console.log(`🏁 ${mode} run complete: ${state.passedCalls}/${state.totalCalls} passed`);
+    
+    // Handle Marathon pass benefits
+    if (mode === 'marathon' && passed) {
+        // Unlock modules 2.1 & 2.2 for 24 hours
+        this.app.moduleManager.unlockModulesTemporarily(['pitch'], 24);
+        
+        // Reset legend attempt flag
+        localStorage.setItem('legend_attempt_used', 'false');
+        
+        // Record marathon pass
+        let marathonPasses = parseInt(localStorage.getItem('marathon_passes') || '0');
+        localStorage.setItem('marathon_passes', (marathonPasses + 1).toString());
+    }
+    
+    // Generate cumulative coaching
+    const coaching = this.generateCumulativeCoaching(state.coachingData);
+    
+    // Show results modal
+    this.showMarathonLegendResults(mode, passed, state, coaching);
+    
+    // End the call
+    this.endCall(false);
+}
+
+collectCoachingData(userInput, evaluation, coachingData) {
+    // Collect issues for cumulative coaching
+    
+    // Sales issues
+    if (!evaluation.pass && evaluation.failReason) {
+        coachingData.sales.push({
+            stage: this.conversationState.stage,
+            issue: evaluation.failReason
+        });
+    }
+    
+    // Grammar issues (simulated)
+    const grammarIssues = this.app.speechManager.checkGrammarIssues(userInput);
+    if (grammarIssues.length > 0) {
+        coachingData.grammar.push(...grammarIssues);
+    }
+    
+    // Vocabulary issues (simulated)
+    const vocabularyIssues = this.app.speechManager.checkVocabularyIssues(userInput);
+    if (vocabularyIssues.length > 0) {
+        coachingData.vocabulary.push(...vocabularyIssues);
+    }
+    
+    // Pronunciation issues
+    if (this.app.speechManager.pronunciationLog) {
+        coachingData.pronunciation.push(...this.app.speechManager.pronunciationLog);
+    }
+}
+
+generateCumulativeCoaching(coachingData) {
+    const coaching = {
+        sales: this.getTopIssues(coachingData.sales, 2, 'sales'),
+        grammar: this.getTopIssues(coachingData.grammar, 2, 'grammar'),
+        vocabulary: this.getTopIssues(coachingData.vocabulary, 2, 'vocabulary'),
+        pronunciation: this.getTopIssues(coachingData.pronunciation, 2, 'pronunciation')
+    };
+    
+    return coaching;
+}
+
+getTopIssues(issues, maxCount, category) {
+    if (issues.length === 0) {
+        return [`Great ${category}!`, `Excellent ${category} throughout!`];
+    }
+    
+    // Get unique issues
+    const uniqueIssues = [...new Set(issues.map(i => JSON.stringify(i)))].map(i => JSON.parse(i));
+    
+    // Take top issues
+    const topIssues = uniqueIssues.slice(0, maxCount);
+    
+    // Format based on category
+    const formatted = topIssues.map(issue => {
+        switch (category) {
+            case 'sales':
+                return this.formatSalesCoaching(issue);
+            case 'grammar':
+            case 'vocabulary':
+                return issue; // Already formatted
+            case 'pronunciation':
+                return `Word: "${issue.word}" - Say it like: "${issue.phonetic}"`;
+            default:
+                return issue;
+        }
+    });
+    
+    // Fill remaining slots with positive feedback
+    while (formatted.length < maxCount) {
+        formatted.push(`Good ${category}!`);
+    }
+    
+    return formatted;
+}
+
+formatSalesCoaching(issue) {
+    const coachingMap = {
+        'No clear cold call opener': 'Start with your name and company clearly.',
+        'No empathy shown': 'Add "I know this is out of the blue" to show understanding.',
+        'No soft question at end': 'Always end opener with "Can I tell you why I\'m calling?"',
+        'No calm acknowledgment': 'Start objection responses with "I totally get that".',
+        'Too long': 'Keep your pitch to 1-2 sentences maximum.',
+        'No clear outcome/benefit': 'Focus on results like "save time" not features.'
+    };
+    
+    return coachingMap[issue.issue] || 'Focus on clear communication.';
+}
+
+showMarathonLegendResults(mode, passed, state, coaching) {
+    let content = `
+        <div class="marathon-results">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h2 style="color: ${passed ? '#4CAF50' : '#f44336'};">
+                    ${mode === 'legend' ? '⚡' : '🏃'} ${mode.toUpperCase()} ${passed ? 'PASSED' : 'FAILED'}
+                </h2>
+                <div style="font-size: 2rem; margin: 10px 0;">
+                    ${state.passedCalls}/${state.totalCalls}
+                </div>
+            </div>
+    `;
+    
+    // Add specific messaging based on scenario
+    if (mode === 'marathon' && passed) {
+        content += `
+            <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <strong>🎉 Nice work!</strong><br>
+                You passed ${state.passedCalls} out of ${state.totalCalls}! You've unlocked the next modules for 24 hours 
+                and earned one shot at Legend Mode.
+            </div>
+        `;
+    } else if (mode === 'marathon' && !passed) {
+        content += `
+            <div style="background: #ffebee; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                You completed all ${state.totalCalls} calls and scored ${state.passedCalls}/${state.totalCalls}. 
+                Keep practicing—the more reps you get, the easier it becomes.
+            </div>
+        `;
+    } else if (mode === 'legend' && passed) {
+        content += `
+            <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <strong>🏆 Wow—six for six!</strong><br>
+                That's legendary. Very few reps pull this off, so enjoy the bragging rights!
+            </div>
+        `;
+    } else if (mode === 'legend' && !passed) {
+        content += `
+            <div style="background: #fff3e0; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                Legend attempt over this time. To earn another shot, just pass Marathon again. 
+                Meanwhile, modules 2.1 and 2.2 are open for the next 24 hours—feel free to explore them.
+            </div>
+        `;
+    }
+    
+    // Add cumulative coaching
+    content += `
+        <div class="coaching-section">
+            <h4>📊 Coaching Summary (CEFR A2 English)</h4>
+            
+            <div class="coaching-item">
+                <strong>💼 Sales (Top 2 areas):</strong><br>
+                1. ${coaching.sales[0]}<br>
+                2. ${coaching.sales[1]}
+            </div>
+            
+            <div class="coaching-item">
+                <strong>📝 Grammar (Top 2):</strong><br>
+                1. ${coaching.grammar[0]}<br>
+                2. ${coaching.grammar[1]}
+            </div>
+            
+            <div class="coaching-item">
+                <strong>📚 Vocabulary (Top 2):</strong><br>
+                1. ${coaching.vocabulary[0]}<br>
+                2. ${coaching.vocabulary[1]}
+            </div>
+            
+            <div class="coaching-item">
+                <strong>🗣️ Pronunciation (Top 2):</strong><br>
+                1. ${coaching.pronunciation[0]}<br>
+                2. ${coaching.pronunciation[1]}
+            </div>
+        </div>
+    `;
+    
+    // Add action buttons
+    const legendAvailable = mode === 'marathon' && passed && localStorage.getItem('legend_attempt_used') === 'false';
+    
+    content += `
+        <div style="margin-top: 20px; text-align: center;">
+            <p><strong>${mode === 'marathon' ? 
+                (legendAvailable ? 'Want to go for Legend now or run another Marathon?' : 'Ready to try Marathon again?') : 
+                'Ready to practice more?'}</strong></p>
+        </div>
+    `;
+    
+    content += '</div>';
+    
+    // Show modal
+    const modal = document.getElementById('feedbackModal');
+    const titleEl = document.getElementById('feedbackTitle');
+    const contentEl = document.getElementById('feedbackContent');
+    const nextBtn = modal.querySelector('.btn-primary');
+    const closeBtn = modal.querySelector('.btn-secondary');
+    
+    if (titleEl) titleEl.textContent = `${mode.charAt(0).toUpperCase() + mode.slice(1)} Complete`;
+    if (contentEl) contentEl.innerHTML = content;
+    
+    if (nextBtn && closeBtn) {
+        if (legendAvailable) {
+            nextBtn.textContent = 'Try Legend Mode';
+            nextBtn.onclick = () => {
+                this.closeFeedbackModal();
+                this.app.moduleManager.startModule('opener', 'legend');
+            };
+            
+            closeBtn.textContent = 'Back to Menu';
+            closeBtn.onclick = () => this.closeFeedbackModal();
+        } else {
+            nextBtn.textContent = mode === 'marathon' ? 'Try Marathon Again' : 'Back to Menu';
+            nextBtn.onclick = () => this.closeFeedbackModal();
+            
+            closeBtn.style.display = 'none';
+        }
+    }
+    
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.style.animation = 'fadeIn 0.3s ease-out';
+    }
+}
+
+updateMarathonProgress() {
+    const state = this.app.getCurrentMode() === 'legend' ? this.legendState : this.marathonState;
+    const progressText = document.getElementById('callProgressText');
+    const progressFill = document.getElementById('callProgressFill');
+    
+    if (progressText) {
+        progressText.textContent = `Call ${state.currentCall}/${state.totalCalls} (${state.passedCalls} passed)`;
+    }
+    
+    if (progressFill) {
+        const progressPercent = ((state.currentCall - 1) / state.totalCalls) * 100;
+        progressFill.style.width = `${progressPercent}%`;
+        
+        // Color based on performance
+        const passRate = state.passedCalls / Math.max(1, state.currentCall - 1);
+        if (passRate >= 0.6) {
+            progressFill.style.backgroundColor = '#4CAF50';
+        } else if (passRate >= 0.4) {
+            progressFill.style.backgroundColor = '#ff9800';
+        } else {
+            progressFill.style.backgroundColor = '#f44336';
+        }
+    }
+}
+
     // CRITICAL FIX: Enhanced handleSuccessfulInteraction with conversation flow logic
    handleSuccessfulInteraction(userInput, aiResponse) {
     const currentModule = this.app.getCurrentModule();
+    const currentMode = this.app.getCurrentMode();
+    
+    if (currentModule === 'opener') {
+        if (currentMode === 'practice') {
+            this.handleRoleplay1Interaction(userInput, aiResponse);
+            return;
+        } else if (currentMode === 'marathon' || currentMode === 'legend') {
+            this.handleMarathonLegendInteraction(userInput, aiResponse, currentMode);
+            return;
+        }
+    }
     
     console.log('✅ Successful interaction received:', {
         module: currentModule,
@@ -417,21 +1029,7 @@ generateOpenerWelcomeMessage(character) {
         aiResponseLength: aiResponse.length,
         currentStage: this.conversationState?.stage
     });
-    
-    // CRITICAL FIX: Never end the call prematurely in practice mode
-    if (this.app.getCurrentMode() === 'practice' && currentModule === 'opener') {
-        this.handleOpenerPracticeFlow(userInput, aiResponse);
-        return; // Don't call other handlers
-    }
-    
-    // Handle different modules differently
-    if (currentModule === 'warmup') {
-        this.handleWarmupInteraction();
-    } else if (currentModule === 'opener') {
-        this.handleOpenerFlowInteraction(userInput, aiResponse);
-    } else {
-        this.handleStandardInteraction();
-    }
+
 }
 
     
@@ -1424,28 +2022,66 @@ showRoleplay1Coaching(coaching, success) {
 
 // Override startConversation for roleplay 1
 startConversation() {
-    if (this.app.getCurrentModule() === 'opener' && this.app.getCurrentMode() === 'practice') {
-        // Initialize roleplay 1 state
-        this.initializeRoleplay1State();
-        
-        // Simple greeting for roleplay 1
-        const greetings = ["Hello?", "Yes?", "Hello, who is this?", "Speaking."];
-        const greeting = greetings[Math.floor(Math.random() * greetings.length)];
-        
-        this.app.speechManager.speakAI(greeting);
-        
-        // Start silence detection
-        setTimeout(() => {
-            if (this.app.isInCall()) {
-                this.startSilenceDetection();
-                this.app.speechManager.startContinuousListening();
-            }
-        }, 2000);
-    } else {
-        // Call original method for other modules
-        super.startConversation();
+    const currentModule = this.app.getCurrentModule();
+    const currentMode = this.app.getCurrentMode();
+    
+    if (currentModule === 'opener') {
+        if (currentMode === 'practice') {
+            // Existing roleplay 1.1 code
+            this.initializeRoleplay1State();
+            const greetings = ["Hello?", "Yes?", "Hello, who is this?", "Speaking."];
+            const greeting = greetings[Math.floor(Math.random() * greetings.length)];
+            this.app.speechManager.speakAI(greeting);
+            
+            setTimeout(() => {
+                if (this.app.isInCall()) {
+                    this.startSilenceDetection();
+                    this.app.speechManager.startContinuousListening();
+                }
+            }, 2000);
+            return;
+        } else if (currentMode === 'marathon') {
+            // Initialize marathon state
+            this.initializeMarathonState();
+            this.startMarathonConversation();
+            return;
+        } else if (currentMode === 'legend') {
+            // Initialize legend state
+            this.initializeLegendState();
+            this.startMarathonConversation();
+            return;
+        }
     }
+    
 }
+startMarathonConversation() {
+    // Reset conversation state
+    this.conversationState = {
+        stage: 'opener',
+        openerDelivered: false,
+        objectionHandled: false,
+        pitchDelivered: false,
+        discoveryAsked: false
+    };
+    
+    // Update UI
+    this.updateMarathonProgress();
+    
+    // Simple greeting
+    const greetings = ["Hello?", "Yes?", "Speaking."];
+    const greeting = greetings[Math.floor(Math.random() * greetings.length)];
+    
+    this.app.speechManager.speakAI(greeting);
+    
+    // Start silence detection
+    setTimeout(() => {
+        if (this.app.isInCall()) {
+            this.startSilenceDetection();
+            this.app.speechManager.startContinuousListening();
+        }
+    }, 2000);
+}
+
     // ADDITIONAL: Methods for debugging and testing
     debugCallState() {
         console.log('🔍 Call Manager Debug State:');

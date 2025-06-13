@@ -1816,3 +1816,240 @@ body {
     25% { transform: translate(-50%, -50%) rotate(-2deg); }
     75% { transform: translate(-50%, -50%) rotate(2deg); }
 }
+
+/* Add these styles to your styles.css file */
+
+/* Marathon/Legend Results Modal */
+.marathon-results {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.marathon-results h2 {
+    font-size: 2rem;
+    margin-bottom: 10px;
+}
+
+/* Marathon Progress Bar Enhancement */
+.call-progress.marathon-mode .progress-fill {
+    transition: all 0.5s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.call-progress.marathon-mode .progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    animation: progressShine 2s infinite;
+}
+
+/* Legend Mode Special Styling */
+.legend-mode .phone-container {
+    box-shadow: 0 0 30px rgba(118, 75, 162, 0.5);
+    border: 2px solid #764ba2;
+}
+
+.legend-mode .call-status {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.legend-mode .progress-bar {
+    background: rgba(118, 75, 162, 0.2);
+}
+
+.legend-mode .progress-fill {
+    background: linear-gradient(135deg, #764ba2 0%, #f093fb 100%);
+}
+
+/* Marathon Mode Styling */
+.marathon-mode .phone-container {
+    box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
+}
+
+.marathon-mode .call-status {
+    background: linear-gradient(135deg, #667eea 0%, #4f46e5 100%);
+}
+
+/* Legend Button Special Style */
+.btn-legend {
+    background: linear-gradient(135deg, #764ba2 0%, #f093fb 100%);
+    color: white;
+    font-weight: 600;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-legend:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(118, 75, 162, 0.4);
+}
+
+.btn-legend:disabled {
+    background: #e9ecef;
+    color: #6c757d;
+}
+
+.btn-legend::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(45deg, transparent, rgba(255,255,255,0.3), transparent);
+    transform: rotate(45deg);
+    transition: all 0.5s;
+}
+
+.btn-legend:hover::before {
+    animation: legendShine 0.5s ease-in-out;
+}
+
+@keyframes legendShine {
+    0% { transform: rotate(45deg) translateY(-100%); }
+    100% { transform: rotate(45deg) translateY(100%); }
+}
+
+/* Marathon/Legend Call Counter */
+.call-counter {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.call-counter.legend {
+    background: linear-gradient(135deg, #764ba2 0%, #f093fb 100%);
+}
+
+/* Temporary Unlock Indicator */
+.module-card .temp-unlock-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: #ff9800;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(0.95); }
+}
+
+/* Marathon Achievement Badge */
+.marathon-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+    color: white;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-left: 10px;
+}
+
+/* Legend Achievement Badge */
+.legend-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: linear-gradient(135deg, #764ba2 0%, #f093fb 100%);
+    color: white;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-left: 10px;
+    box-shadow: 0 2px 10px rgba(118, 75, 162, 0.3);
+}
+
+/* Cumulative Coaching Style */
+.coaching-section .coaching-item {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    border-left: 4px solid #667eea;
+}
+
+.coaching-section .coaching-item ol {
+    margin: 10px 0 0 20px;
+    padding: 0;
+}
+
+.coaching-section .coaching-item ol li {
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
+/* Marathon/Legend Mode Indicators in Phone Interface */
+.marathon-indicator {
+    position: absolute;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(102, 126, 234, 0.9);
+    color: white;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    backdrop-filter: blur(10px);
+}
+
+.legend-indicator {
+    position: absolute;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #764ba2 0%, #f093fb 100%);
+    color: white;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 10px rgba(118, 75, 162, 0.5);
+}
+
+/* Unlock Timer Display */
+.unlock-timer {
+    font-size: 0.75rem;
+    color: #ff9800;
+    margin-top: 5px;
+    font-weight: 600;
+}
+
+.unlock-timer::before {
+    content: '⏰ ';
+}
+
+/* Marathon Progress Colors */
+.progress-fill.good-performance {
+    background-color: #4CAF50 !important;
+}
+
+.progress-fill.average-performance {
+    background-color: #ff9800 !important;
+}
+
+.progress-fill.poor-performance {
+    background-color: #f44336 !important;
+}

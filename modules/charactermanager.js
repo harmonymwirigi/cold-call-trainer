@@ -271,131 +271,130 @@ Keep responses brief and immediately move to the next prompt.`;
     }
     
     // Updated buildOpenerPrompt method for CharacterManager.js
-buildOpenerPrompt(character, context) {
-    // Track objection history to avoid repetition
-    if (!this.objectionHistory) {
-        this.objectionHistory = [];
+    buildOpenerPrompt(character, context) {
+        // Track objection history to avoid repetition
+        if (!this.objectionHistory) {
+            this.objectionHistory = [];
+        }
+        
+        const objectionList = [
+            "What's this about?",
+            "I'm not interested",
+            "We don't take cold calls",
+            "Now is not a good time",
+            "I have a meeting",
+            "Can you call me later?",
+            "I'm about to go into a meeting",
+            "Send me an email",
+            "Can you send me the information?",
+            "Can you message me on WhatsApp?",
+            "Who gave you this number?",
+            "This is my personal number",
+            "Where did you get my number?",
+            "What are you trying to sell me?",
+            "Is this a sales call?",
+            "Is this a cold call?",
+            "Are you trying to sell me something?",
+            "We are ok for the moment",
+            "We are all good / all set",
+            "We're not looking for anything right now",
+            "We are not changing anything",
+            "How long is this going to take?",
+            "Is this going to take long?",
+            "What company are you calling from?",
+            "Who are you again?",
+            "Where are you calling from?",
+            "I never heard of you",
+            "Not interested right now",
+            "Just send me the details"
+        ];
+        
+        // Get an objection that wasn't used in the last call
+        let availableObjections = objectionList.filter(obj => !this.objectionHistory.includes(obj));
+        if (availableObjections.length === 0) {
+            // Reset if all objections have been used
+            this.objectionHistory = [];
+            availableObjections = objectionList;
+        }
+        
+        const selectedObjection = availableObjections[Math.floor(Math.random() * availableObjections.length)];
+        this.objectionHistory.push(selectedObjection);
+        
+        // Keep only the last objection in history to avoid consecutive repetition
+        if (this.objectionHistory.length > 1) {
+            this.objectionHistory = [selectedObjection];
+        }
+        
+        return `You're running ROLEPLAY 1.1 – Opener + Early Objection + Mini-Pitch (Practice Mode)
+    
+    CHARACTER: You are ${character.name}, ${character.title} at ${character.company}. Your personality: ${character.personality}.
+    
+    ROLEPLAY FLOW:
+    1. OPENER STAGE: Wait for the SDR's opener. 
+       - 70-80% chance → proceed to objection
+       - 20-30% chance → random hang-up (call FAIL)
+       
+    2. OBJECTION STAGE: Use this objection: "${selectedObjection}"
+       - Converse until you can judge pass/fail (may require 2-3 back-and-forths)
+       - If pass → move to mini-pitch
+       - If fail → hang up (call FAIL)
+       
+    3. MINI-PITCH + SOFT DISCOVERY: Wait for SDR's mini-pitch + soft question
+       - If pass → respond positively, then hang up (call PASS)
+       - If fail → hang up (call FAIL)
+       
+    4. SILENCE RULE: 
+       - If SDR silent ≥ 10s → use impatience phrase
+       - If silence continues 5s more (15s total) → hang up (call FAIL)
+    
+    PASS/FAIL RUBRICS:
+    
+    OPENER - Pass if 3 of 4:
+    ✓ Clear cold call opener (pattern interrupt, permission-based, or value-first)
+    ✓ Casual, confident tone (contractions, short phrases)
+    ✓ Demonstrates empathy (e.g., "I know this is out of the blue...")
+    ✓ Ends with soft question (e.g., "Can I tell you why I'm calling?")
+    
+    Fail if ANY: Robotic/formal, No empathy, Pushy/long, No question
+    
+    OBJECTION HANDLING - Pass if 3 of 4:
+    ✓ Acknowledges calmly ("Fair enough"/"Totally get that")
+    ✓ Doesn't argue or pitch
+    ✓ Reframes/buys time in 1 sentence
+    ✓ Ends with forward-moving question
+    
+    Fail if ANY: Defensive/pushy/apologetic, Ignores objection, Pitches immediately, No forward question
+    
+    MINI-PITCH - Pass if 3 of 4:
+    ✓ Short (1-2 sentences)
+    ✓ Focuses on problem/outcome
+    ✓ Simple English (no jargon)
+    ✓ Sounds natural
+    
+    Fail if ANY: Too long, Features not outcomes, Vague/unclear, Sounds scripted
+    
+    UNCOVERING PAIN - Pass if 2 of 3:
+    ✓ Short question tied to pitch
+    ✓ Open/curious (e.g., "How are you handling that now?")
+    ✓ Soft, non-pushy tone
+    
+    Fail if ANY: No question, Too broad, Full discovery mode
+    
+    IMPATIENCE PHRASES (use randomly after 10s silence):
+    "Hello? Are you still with me?"
+    "Can you hear me?"
+    "Still on the line?"
+    "I don't have much time for this."
+    
+    IMPORTANT: 
+    - Speak CEFR C2 English (advanced)
+    - No feedback during call
+    - Random 20-30% hang-up chance after opener
+    - Track pronunciation issues (ASR confidence < 0.70)
+    - After hang-up, provide coaching in CEFR A2 English
+    
+    Current conversation stage: ${context}`;
     }
-    
-    const objectionList = [
-        "What's this about?",
-        "I'm not interested",
-        "We don't take cold calls",
-        "Now is not a good time",
-        "I have a meeting",
-        "Can you call me later?",
-        "I'm about to go into a meeting",
-        "Send me an email",
-        "Can you send me the information?",
-        "Can you message me on WhatsApp?",
-        "Who gave you this number?",
-        "This is my personal number",
-        "Where did you get my number?",
-        "What are you trying to sell me?",
-        "Is this a sales call?",
-        "Is this a cold call?",
-        "Are you trying to sell me something?",
-        "We are ok for the moment",
-        "We are all good / all set",
-        "We're not looking for anything right now",
-        "We are not changing anything",
-        "How long is this going to take?",
-        "Is this going to take long?",
-        "What company are you calling from?",
-        "Who are you again?",
-        "Where are you calling from?",
-        "I never heard of you",
-        "Not interested right now",
-        "Just send me the details"
-    ];
-    
-    // Get an objection that wasn't used in the last call
-    let availableObjections = objectionList.filter(obj => !this.objectionHistory.includes(obj));
-    if (availableObjections.length === 0) {
-        // Reset if all objections have been used
-        this.objectionHistory = [];
-        availableObjections = objectionList;
-    }
-    
-    const selectedObjection = availableObjections[Math.floor(Math.random() * availableObjections.length)];
-    this.objectionHistory.push(selectedObjection);
-    
-    // Keep only the last objection in history to avoid consecutive repetition
-    if (this.objectionHistory.length > 1) {
-        this.objectionHistory = [selectedObjection];
-    }
-    
-    return `You're running ROLEPLAY 1.1 – Opener + Early Objection + Mini-Pitch (Practice Mode)
-
-CHARACTER: You are ${character.name}, ${character.title} at ${character.company}. Your personality: ${character.personality}.
-
-ROLEPLAY FLOW:
-1. OPENER STAGE: Wait for the SDR's opener. 
-   - 70-80% chance → proceed to objection
-   - 20-30% chance → random hang-up (call FAIL)
-   
-2. OBJECTION STAGE: Use this objection: "${selectedObjection}"
-   - Converse until you can judge pass/fail (may require 2-3 back-and-forths)
-   - If pass → move to mini-pitch
-   - If fail → hang up (call FAIL)
-   
-3. MINI-PITCH + SOFT DISCOVERY: Wait for SDR's mini-pitch + soft question
-   - If pass → respond positively, then hang up (call PASS)
-   - If fail → hang up (call FAIL)
-   
-4. SILENCE RULE: 
-   - If SDR silent ≥ 10s → use impatience phrase
-   - If silence continues 5s more (15s total) → hang up (call FAIL)
-
-PASS/FAIL RUBRICS:
-
-OPENER - Pass if 3 of 4:
-✓ Clear cold call opener (pattern interrupt, permission-based, or value-first)
-✓ Casual, confident tone (contractions, short phrases)
-✓ Demonstrates empathy (e.g., "I know this is out of the blue...")
-✓ Ends with soft question (e.g., "Can I tell you why I'm calling?")
-
-Fail if ANY: Robotic/formal, No empathy, Pushy/long, No question
-
-OBJECTION HANDLING - Pass if 3 of 4:
-✓ Acknowledges calmly ("Fair enough"/"Totally get that")
-✓ Doesn't argue or pitch
-✓ Reframes/buys time in 1 sentence
-✓ Ends with forward-moving question
-
-Fail if ANY: Defensive/pushy/apologetic, Ignores objection, Pitches immediately, No forward question
-
-MINI-PITCH - Pass if 3 of 4:
-✓ Short (1-2 sentences)
-✓ Focuses on problem/outcome
-✓ Simple English (no jargon)
-✓ Sounds natural
-
-Fail if ANY: Too long, Features not outcomes, Vague/unclear, Sounds scripted
-
-UNCOVERING PAIN - Pass if 2 of 3:
-✓ Short question tied to pitch
-✓ Open/curious (e.g., "How are you handling that now?")
-✓ Soft, non-pushy tone
-
-Fail if ANY: No question, Too broad, Full discovery mode
-
-IMPATIENCE PHRASES (use randomly after 10s silence):
-"Hello? Are you still with me?"
-"Can you hear me?"
-"Still on the line?"
-"I don't have much time for this."
-
-IMPORTANT: 
-- Speak CEFR C2 English (advanced)
-- No feedback during call
-- Random 20-30% hang-up chance after opener
-- Track pronunciation issues (ASR confidence < 0.70)
-- After hang-up, provide coaching in CEFR A2 English
-
-Current conversation stage: ${context}`;
-}
-    
     buildPitchPrompt(character, context) {
         return `You're running Module 2 - Pitch + Post-Pitch Objection + Meeting.
 
@@ -472,6 +471,77 @@ You're prospect #${this.app.getCurrentProgress() + 1} of 10. Be challenging but 
         return industryContexts[industryKey] || 'You work in a professional business environment with standard business concerns about ROI, efficiency, and growth.';
     }
     
+// ADD this new method to CharacterManager
+buildMarathonLegendPrompt(character, context, mode) {
+    // Get the next objection from CallManager
+    const objection = this.app.callManager.getNextObjection(mode === 'legend');
+    
+    const totalCalls = mode === 'legend' ? 6 : 10;
+    const currentCall = mode === 'legend' ? 
+        this.app.callManager.legendState?.currentCall || 1 : 
+        this.app.callManager.marathonState?.currentCall || 1;
+    
+    return `You're running ROLEPLAY 1.2 – ${mode.toUpperCase()} MODE
+
+CHARACTER: You are ${character.name}, ${character.title} at ${character.company}. Your personality: ${character.personality}.
+
+MODE RULES:
+- ${mode === 'marathon' ? 'Marathon: 10 calls, need 6/10 to pass' : 'Legend: 6 calls, need perfect 6/6'}
+- Call ${currentCall} of ${totalCalls}
+- This call's objection: "${objection}"
+- ${mode === 'marathon' ? '20-30% random hangup chance after good opener' : 'No random hangups in Legend'}
+- NO feedback during calls
+- NO objection repetition within this run
+
+ROLEPLAY FLOW:
+1. OPENER STAGE: Wait for the SDR's opener
+   ${mode === 'marathon' ? '- If pass: 20-30% chance of random hangup (counts as FAIL)' : ''}
+   - Evaluate using standard rubrics
+   
+2. OBJECTION STAGE: Use objection "${objection}"
+   - Converse to establish pass/fail (may need 2-3 exchanges)
+   - If pass → move to mini-pitch
+   - If fail → hang up
+   
+3. MINI-PITCH + DISCOVERY: Wait for pitch + question
+   - If pass → positive response, then hang up
+   - If fail → hang up
+
+SILENCE RULE: 10s warning, 15s hangup
+
+EVALUATION RUBRICS (same as practice):
+
+OPENER - Pass if 3 of 4:
+✓ Clear cold call opener
+✓ Casual, confident tone
+✓ Demonstrates empathy
+✓ Ends with soft question
+
+OBJECTION - Pass if 3 of 4:
+✓ Acknowledges calmly
+✓ Doesn't argue or pitch
+✓ Reframes in 1 sentence
+✓ Forward-moving question
+
+MINI-PITCH - Pass if 3 of 4:
+✓ Short (1-2 sentences)
+✓ Problem/outcome focused
+✓ Simple English
+✓ Sounds natural
+
+DISCOVERY - Pass if 2 of 3:
+✓ Short question tied to pitch
+✓ Open/curious
+✓ Soft tone
+
+Remember:
+- Speak CEFR C2 English
+- Stay in character
+- ${mode === 'marathon' ? 'Random hangups only at opener stage' : 'No random hangups'}
+- This is call ${currentCall}/${totalCalls}
+
+Current stage: ${context}`
+}
     getDefaultPrompt(moduleId) {
         return `You are a business professional participating in a cold call training simulation. Act as a realistic prospect for Module ${moduleId}. Be appropriately challenging but fair in your responses.`;
     }
